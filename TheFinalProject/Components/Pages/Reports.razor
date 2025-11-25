@@ -13,33 +13,43 @@
 }
 else
 {
+    <!-- Карточки с основными показателями -->
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-white bg-success">
                 <div class="card-body">
-                    <h5 class="card-title">Общий приход</h5>
+                    <h5 class="card-title">Приход (внешний)</h5>
                     <h2>@totalIncome.ToString("N2") руб.</h2>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-white bg-danger">
                 <div class="card-body">
-                    <h5 class="card-title">Общий расход</h5>
+                    <h5 class="card-title">Расход (внешний)</h5>
                     <h2>@totalExpense.ToString("N2") руб.</h2>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-white bg-info">
                 <div class="card-body">
-                    <h5 class="card-title">Баланс</h5>
+                    <h5 class="card-title">Баланс компании</h5>
                     <h2>@balance.ToString("N2") руб.</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-secondary">
+                <div class="card-body">
+                    <h5 class="card-title">Внутренние переводы</h5>
+                    <h2>@internalTransfers.ToString("N2") руб.</h2>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Графики -->
     <div class="row mb-4">
         <div class="col-md-6">
             <div class="card">
@@ -51,7 +61,6 @@ else
                 </div>
             </div>
         </div>
-
         <div class="col-md-6">
             <div class="card">
                 <div class="card-body">
@@ -64,7 +73,7 @@ else
         </div>
     </div>
 
-
+    <!-- Таблица балансов по отделам -->
     <h4>Баланс по отделам</h4>
     <table class="table table-bordered">
         <thead>
@@ -72,22 +81,76 @@ else
                 <th>Отдел</th>
                 <th>Приход</th>
                 <th>Расход</th>
+                <th>Переводы Из</th>
+                <th>Переводы В</th>
                 <th>Баланс</th>
             </tr>
         </thead>
         <tbody>
             @foreach (var dept in departments)
             {
-                var deptTransactions = transactions.Where(t => t.DepartmentId == dept.Id).ToList();
-                var deptIncome = deptTransactions.Where(t => t.OperationType == "Приход").Sum(t => t.Amount);
-                var deptExpense = deptTransactions.Where(t => t.OperationType == "Расход").Sum(t => t.Amount);
-                var deptBalance = deptIncome - deptExpense;
+                var deptTransactions = transactions.Where(t => 
+                    t.DepartmentId == dept.Id || 
+                    t.TargetDepartmentId == dept.Id
+                ).ToList();
+
+                var deptIncome = deptTransactions
+                    .Where(t => t.OperationType == "Приход" && t.DepartmentId == dept.Id)
+                    .Sum(t => t.Amount);
+
+                var deptExpense = deptTransactions
+                    .Where(t => t.OperationType == "Расход" && t.DepartmentId == dept.Id)
+                    .Sum(t => t.Amount);
+
+                var transfersOut = deptTransactions
+                    .Where(t => t.OperationType == "Внутренний перевод" && t.DepartmentId == dept.Id)
+                    .Sum(t => t.Amount);
+
+                var transfersIn = deptTransactions
+                    .Where(t => t.OperationType == "Внутренний перевод" && t.TargetDepartmentId == dept.Id)
+                    .Sum(t => t.Amount);
+
+                var deptBalance = deptIncome - deptExpense - transfersOut + transfersIn;
 
                 <tr>
-                    <td>@dept.Name</td>
+                    <td><strong>@dept.Name</strong></td>
                     <td class="text-success">@deptIncome.ToString("N2") руб.</td>
                     <td class="text-danger">@deptExpense.ToString("N2") руб.</td>
-                    <td class="@(deptBalance >= 0 ? "text-success" : "text-danger")">@deptBalance.ToString("N2") руб.</td>
+                    <td class="text-warning">-@transfersOut.ToString("N2") руб.</td>
+                    <td class="text-info">+@transfersIn.ToString("N2") руб.</td>
+                    <td class="@(deptBalance >= 0 ? "text-success" : "text-danger") fw-bold">
+                        @deptBalance.ToString("N2") руб.
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <!-- Последние операции -->
+    <h4 class="mt-4">Последние операции</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Отдел</th>
+                <th>Тип</th>
+                <th>Сумма</th>
+                <th>Описание</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var t in transactions.OrderByDescending(t => t.Date).Take(10))
+            {
+                <tr>
+                    <td>@t.Date.ToShortDateString()</td>
+                    <td>@(departments.FirstOrDefault(d => d.Id == t.DepartmentId)?.Name ?? "Н/Д")</td>
+                    <td>
+                        <span class="badge @GetBadgeClass(t.OperationType)">
+                            @t.OperationType
+                        </span>
+                    </td>
+                    <td>@t.Amount.ToString("N2") руб.</td>
+                    <td>@t.Description</td>
                 </tr>
             }
         </tbody>
@@ -100,10 +163,6 @@ else
         height: 300px;
         max-height: 400px;
     }
-
-    canvas {
-        max-height: 100%;
-    }
 </style>
 
 @code {
@@ -113,6 +172,7 @@ else
     private decimal totalIncome;
     private decimal totalExpense;
     private decimal balance;
+    private decimal internalTransfers; // Добавили переменную
 
     protected override async Task OnInitializedAsync()
     {
@@ -132,9 +192,32 @@ else
 
     private void CalculateTotals()
     {
-        totalIncome = transactions.Where(t => t.OperationType == "Приход").Sum(t => t.Amount);
-        totalExpense = transactions.Where(t => t.OperationType == "Расход").Sum(t => t.Amount);
+        // Только внешние операции
+        totalIncome = transactions
+            .Where(t => t.OperationType == "Приход")
+            .Sum(t => t.Amount);
+
+        totalExpense = transactions
+            .Where(t => t.OperationType == "Расход")
+            .Sum(t => t.Amount);
+
         balance = totalIncome - totalExpense;
+
+        // Внутренние переводы (не влияют на общий баланс)
+        internalTransfers = transactions
+            .Where(t => t.OperationType == "Внутренний перевод")
+            .Sum(t => t.Amount);
+    }
+
+    private string GetBadgeClass(string operationType)
+    {
+        return operationType switch
+        {
+            "Приход" => "bg-success",
+            "Расход" => "bg-danger",
+            "Внутренний перевод" => "bg-warning",
+            _ => "bg-secondary"
+        };
     }
 
     private async Task RenderCharts()
@@ -144,11 +227,20 @@ else
             new Chart(document.getElementById('operationsChart'), {{
                 type: 'pie',
                 data: {{
-                    labels: ['Приход', 'Расход'],
+                    labels: ['Приход', 'Расход', 'Внутренние переводы'],
                     datasets: [{{
-                        data: [{totalIncome}, {totalExpense}],
-                        backgroundColor: ['#28a745', '#dc3545']
+                        data: [{totalIncome}, {totalExpense}, {internalTransfers}],
+                        backgroundColor: ['#28a745', '#dc3545', '#ffc107']
                     }}]
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {{
+                        legend: {{
+                            position: 'bottom'
+                        }}
+                    }}
                 }}
             }});
         ");
@@ -157,10 +249,14 @@ else
         var deptNames = string.Join(",", departments.Select(d => $"'{d.Name}'"));
         var deptBalances = string.Join(",", departments.Select(d =>
         {
-            var deptTrans = transactions.Where(t => t.DepartmentId == d.Id);
-            var income = deptTrans.Where(t => t.OperationType == "Приход").Sum(t => t.Amount);
-            var expense = deptTrans.Where(t => t.OperationType == "Расход").Sum(t => t.Amount);
-            return income - expense;
+            var deptTrans = transactions.Where(t => t.DepartmentId == d.Id || t.TargetDepartmentId == d.Id);
+            
+            var income = deptTrans.Where(t => t.OperationType == "Приход" && t.DepartmentId == d.Id).Sum(t => t.Amount);
+            var expense = deptTrans.Where(t => t.OperationType == "Расход" && t.DepartmentId == d.Id).Sum(t => t.Amount);
+            var transfersOut = deptTrans.Where(t => t.OperationType == "Внутренний перевод" && t.DepartmentId == d.Id).Sum(t => t.Amount);
+            var transfersIn = deptTrans.Where(t => t.OperationType == "Внутренний перевод" && t.TargetDepartmentId == d.Id).Sum(t => t.Amount);
+            
+            return income - expense - transfersOut + transfersIn;
         }));
 
         await JS.InvokeVoidAsync("eval", $@"
@@ -173,6 +269,15 @@ else
                         data: [{deptBalances}],
                         backgroundColor: '#17a2b8'
                     }}]
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {{
+                        y: {{
+                            beginAtZero: true
+                        }}
+                    }}
                 }}
             }});
         ");

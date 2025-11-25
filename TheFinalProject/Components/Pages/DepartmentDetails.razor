@@ -4,8 +4,21 @@
 @inject DepartmentService DepartmentService
 @inject AccountService AccountService
 @inject TransactionService TransactionService
+@inject NavigationManager NavManager
 
-<h3>Отдел: @department?.Name</h3>
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/departments">Отделы</a></li>
+        <li class="breadcrumb-item active" aria-current="page">@department?.Name</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Отдел: @department?.Name</h3>
+    <a href="/add-transaction" class="btn btn-primary">
+        <span class="bi bi-arrow-left-right"></span> Выполнить перевод
+    </a>
+</div>
 
 @if (department == null)
 {
@@ -13,22 +26,93 @@
 }
 else
 {
+    <!-- Финансовая статистика -->
     <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h6 class="card-title">Приход</h6>
+                    <h4>@income.ToString("N2") руб.</h4>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h6 class="card-title">Расход</h6>
+                    <h4>@expense.ToString("N2") руб.</h4>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <h6 class="card-title text-dark">Переводы (исходящие)</h6>
+                    <h4 class="text-dark">@transfersOut.ToString("N2") руб.</h4>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h6 class="card-title">Переводы (входящие)</h6>
+                    <h4>@transfersIn.ToString("N2") руб.</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Итоговый баланс -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>Итоговый баланс отдела</h5>
+                    <h2 class="@(balance >= 0 ? "text-success" : "text-danger")">
+                        @balance.ToString("N2") руб.
+                    </h2>
+                    <small class="text-muted">
+                        Формула: Приход (@income.ToString("N2")) - Расход (@expense.ToString("N2"))
+                        - Переводы OUT (@transfersOut.ToString("N2")) + Переводы IN (@transfersIn.ToString("N2"))
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Сотрудники и координация -->
+    <div class="row mb-4">
+        <!-- Сотрудники отдела -->
         <div class="col-md-6">
             <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Сотрудники отдела</h5>
+                    <a href="/accounts" class="btn btn-sm btn-outline-primary">
+                        <span class="bi bi-plus"></span> Добавить
+                    </a>
+                </div>
                 <div class="card-body">
-                    <h5>Сотрудники отдела</h5>
                     @if (!accounts.Any())
                     {
-                        <p><em>Сотрудников нет</em></p>
+                        <p class="text-muted"><em>Сотрудников нет</em></p>
                     }
                     else
                     {
-                        <ul class="list-group">
+                        <ul class="list-group list-group-flush">
                             @foreach (var acc in accounts)
                             {
                                 <li class="list-group-item">
-                                    <strong>@acc.DisplayName</strong> — @acc.Role
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>@acc.DisplayName</strong>
+                                            <br />
+                                            <small class="text-muted">@acc.Role</small>
+                                        </div>
+                                        <span class="badge bg-secondary">ID: @acc.Id</span>
+                                    </div>
                                 </li>
                             }
                         </ul>
@@ -37,46 +121,133 @@ else
             </div>
         </div>
 
+        <!-- Координация с другими отделами -->
         <div class="col-md-6">
             <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Координация с отделами</h5>
+                </div>
                 <div class="card-body">
-                    <h5>Финансовая статистика</h5>
-                    <p>Приход: <strong class="text-success">@income руб.</strong></p>
-                    <p>Расход: <strong class="text-danger">@expense руб.</strong></p>
-                    <p>Баланс: <strong class="@(balance >= 0 ? "text-success" : "text-danger")">@balance руб.</strong></p>
+                    @if (!coordinationData.Any())
+                    {
+                        <p class="text-muted"><em>Нет взаимодействий с другими отделами</em></p>
+                    }
+                    else
+                    {
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Отдел</th>
+                                    <th class="text-end">Получено</th>
+                                    <th class="text-end">Отправлено</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var coord in coordinationData)
+                                {
+                                    <tr>
+                                        <td>@coord.DepartmentName</td>
+                                        <td class="text-end text-success">
+                                            +@coord.ReceivedAmount.ToString("N2") руб.
+                                        </td>
+                                        <td class="text-end text-danger">
+                                            -@coord.SentAmount.ToString("N2") руб.
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Транзакции отдела -->
     <h4>Транзакции отдела</h4>
-    @if (!transactions.Any())
+
+    <!-- Фильтр по типу операции -->
+    <div class="btn-group mb-3" role="group">
+        <button type="button" class="btn @(selectedFilter == "all" ? "btn-primary" : "btn-outline-primary")"
+                @onclick='() => FilterTransactions("all")'>
+            Все
+        </button>
+        <button type="button" class="btn @(selectedFilter == "income" ? "btn-success" : "btn-outline-success")"
+                @onclick='() => FilterTransactions("income")'>
+            Приход
+        </button>
+        <button type="button" class="btn @(selectedFilter == "expense" ? "btn-danger" : "btn-outline-danger")"
+                @onclick='() => FilterTransactions("expense")'>
+            Расход
+        </button>
+        <button type="button" class="btn @(selectedFilter == "transfer" ? "btn-warning" : "btn-outline-warning")"
+                @onclick='() => FilterTransactions("transfer")'>
+            Переводы
+        </button>
+    </div>
+
+    @if (!filteredTransactions.Any())
     {
-        <p><em>Транзакций нет</em></p>
+        <p class="text-muted"><em>Транзакций нет</em></p>
     }
     else
     {
-        <table class="table table-striped">
+        <table class="table table-striped table-hover">
             <thead>
                 <tr>
                     <th>Дата</th>
                     <th>Тип</th>
                     <th>Сумма</th>
                     <th>Описание</th>
+                    <th>Связь</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var t in transactions.OrderByDescending(t => t.Date))
+                @foreach (var t in filteredTransactions.OrderByDescending(t => t.Date))
                 {
+                    var isOutgoing = t.DepartmentId == DepartmentId;
+                    var relatedDeptId = isOutgoing ? t.TargetDepartmentId : (int?)t.DepartmentId;
+                    var relatedDeptName = relatedDeptId.HasValue
+                    ? allDepartments.FirstOrDefault(d => d.Id == relatedDeptId)?.Name ?? "Н/Д"
+                    : "-";
+
                     <tr>
                         <td>@t.Date.ToShortDateString()</td>
                         <td>
-                            <span class="badge @(t.OperationType == "Приход" ? "bg-success" : "bg-danger")">
+                            <span class="badge @GetBadgeClass(t.OperationType)">
                                 @t.OperationType
                             </span>
                         </td>
-                        <td>@t.Amount руб.</td>
+                        <td class="fw-bold">
+                            @if (t.OperationType == "Внутренний перевод")
+                            {
+                                if (isOutgoing)
+                                {
+                                    <span class="text-danger">-@t.Amount.ToString("N2") руб.</span>
+                                }
+                                else
+                                {
+                                    <span class="text-success">+@t.Amount.ToString("N2") руб.</span>
+                                }
+                            }
+                            else
+                            {
+                                @($"{t.Amount:N2}") @:руб.
+                            }
+                        </td>
                         <td>@t.Description</td>
+                        <td>
+                            @if (t.OperationType == "Внутренний перевод")
+                            {
+                                <span class="badge @(isOutgoing ? "bg-warning text-dark" : "bg-info")">
+                                    @(isOutgoing ? "→" : "←") @relatedDeptName
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">-</span>
+                            }
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -91,21 +262,121 @@ else
     private Department? department;
     private List<Account> accounts = new();
     private List<Transaction> transactions = new();
+    private List<Transaction> filteredTransactions = new();
+    private List<Department> allDepartments = new();
+    private string selectedFilter = "all";
 
     private decimal income;
     private decimal expense;
+    private decimal transfersOut;
+    private decimal transfersIn;
     private decimal balance;
+
+    private List<DepartmentCoordination> coordinationData = new();
 
     protected override async Task OnInitializedAsync()
     {
         department = await DepartmentService.GetDepartmentByIdAsync(DepartmentId);
         accounts = await AccountService.GetAccountsByDepartmentAsync(DepartmentId);
+        allDepartments = await DepartmentService.GetDepartmentsAsync();
 
         var allTransactions = await TransactionService.GetTransactionsAsync();
-        transactions = allTransactions.Where(t => t.DepartmentId == DepartmentId).ToList();
 
-        income = transactions.Where(t => t.OperationType == "Приход").Sum(t => t.Amount);
-        expense = transactions.Where(t => t.OperationType == "Расход").Sum(t => t.Amount);
-        balance = income - expense;
+        // Транзакции связанные с этим отделом (входящие и исходящие)
+        transactions = allTransactions.Where(t =>
+            t.DepartmentId == DepartmentId ||
+            t.TargetDepartmentId == DepartmentId
+        ).ToList();
+
+        CalculateFinancials();
+        CalculateCoordination();
+        FilterTransactions("all");
+    }
+
+    private void CalculateFinancials()
+    {
+        // Приход
+        income = transactions
+            .Where(t => t.OperationType == "Приход" && t.DepartmentId == DepartmentId)
+            .Sum(t => t.Amount);
+
+        // Расход
+        expense = transactions
+            .Where(t => t.OperationType == "Расход" && t.DepartmentId == DepartmentId)
+            .Sum(t => t.Amount);
+
+        // Исходящие переводы
+        transfersOut = transactions
+            .Where(t => t.OperationType == "Внутренний перевод" && t.DepartmentId == DepartmentId)
+            .Sum(t => t.Amount);
+
+        // Входящие переводы
+        transfersIn = transactions
+            .Where(t => t.OperationType == "Внутренний перевод" && t.TargetDepartmentId == DepartmentId)
+            .Sum(t => t.Amount);
+
+        // Итоговый баланс
+        balance = income - expense - transfersOut + transfersIn;
+    }
+
+    private void CalculateCoordination()
+    {
+        var internalTransfers = transactions.Where(t => t.OperationType == "Внутренний перевод").ToList();
+
+        var relatedDepartments = internalTransfers
+            .Select(t => t.DepartmentId == DepartmentId ? t.TargetDepartmentId : (int?)t.DepartmentId)
+            .Where(id => id.HasValue)
+            .Distinct()
+            .ToList();
+
+        foreach (var deptId in relatedDepartments)
+        {
+            if (!deptId.HasValue) continue;
+
+            var received = internalTransfers
+                .Where(t => t.TargetDepartmentId == DepartmentId && t.DepartmentId == deptId.Value)
+                .Sum(t => t.Amount);
+
+            var sent = internalTransfers
+                .Where(t => t.DepartmentId == DepartmentId && t.TargetDepartmentId == deptId.Value)
+                .Sum(t => t.Amount);
+
+            coordinationData.Add(new DepartmentCoordination
+            {
+                DepartmentName = allDepartments.FirstOrDefault(d => d.Id == deptId.Value)?.Name ?? "Н/Д",
+                ReceivedAmount = received,
+                SentAmount = sent
+            });
+        }
+    }
+
+    private void FilterTransactions(string filter)
+    {
+        selectedFilter = filter;
+        filteredTransactions = filter switch
+        {
+            "income" => transactions.Where(t => t.OperationType == "Приход" && t.DepartmentId == DepartmentId).ToList(),
+            "expense" => transactions.Where(t => t.OperationType == "Расход" && t.DepartmentId == DepartmentId).ToList(),
+            "transfer" => transactions.Where(t => t.OperationType == "Внутренний перевод").ToList(),
+            _ => transactions.ToList()
+        };
+    }
+
+    private string GetBadgeClass(string operationType)
+    {
+        return operationType switch
+        {
+            "Приход" => "bg-success",
+            "Расход" => "bg-danger",
+            "Внутренний перевод" => "bg-warning text-dark",
+            _ => "bg-secondary"
+        };
+    }
+
+    private class DepartmentCoordination
+    {
+        public string DepartmentName { get; set; } = string.Empty;
+        public decimal ReceivedAmount { get; set; }
+        public decimal SentAmount { get; set; }
     }
 }

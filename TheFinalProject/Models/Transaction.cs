@@ -24,5 +24,7 @@ namespace TheFinalProject.Models
         [Required(ErrorMessage = "Выберите отдел")]
         [Range(1, int.MaxValue, ErrorMessage = "Выберите отдел")]
         public int DepartmentId { get; set; }
+
+        public int? TargetDepartmentId { get; set; } // Nullable - только для типа "Межотдельский перевод"
     }
 }

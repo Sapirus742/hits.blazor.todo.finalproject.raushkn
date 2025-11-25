@@ -6,6 +6,11 @@ a, .btn-link {
     color: #006bb7;
 }
 
+/* Расширяем боковое меню */
+.sidebar {
+    width: 350px; /* Было 250px */
+}
+
 .btn-primary {
     color: #fff;
     background-color: #1b6ec2;

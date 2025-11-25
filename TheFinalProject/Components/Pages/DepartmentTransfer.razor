@@ -1,0 +1,246 @@
+﻿@page "/department-transfer"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject TransactionService TransactionService
+@inject DepartmentService DepartmentService
+@inject AccountService AccountService
+@inject NavigationManager NavManager
+
+<h3>Межотдельский перевод</h3>
+
+<div class="card">
+    <div class="card-body">
+        <EditForm Model="transfer" OnValidSubmit="HandleTransfer">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" />
+
+            <div class="row">
+                <!-- Отдел-отправитель -->
+                <div class="col-md-6">
+                    <h5>Отдел-отправитель</h5>
+
+                    <div class="mb-3">
+                        <label class="form-label">Отдел</label>
+                        <select class="form-control"
+                                @bind="selectedSourceDepartmentId"
+                                @bind:after="OnSourceDepartmentChanged">
+                            <option value="0">-- Выберите отдел --</option>
+                            @foreach (var dept in departments)
+                            {
+                                <option value="@dept.Id">@dept.Name</option>
+                            }
+                        </select>
+                        @if (transfer.DepartmentId == 0)
+                        {
+                            <small class="text-danger">Выберите отдел-отправитель</small>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Ответственный сотрудник</label>
+                        <select class="form-control" @bind="transfer.AccountId">
+                            <option value="0">-- Выберите сотрудника --</option>
+                            @foreach (var acc in sourceAccounts)
+                            {
+                                <option value="@acc.Id">@acc.DisplayName (@acc.Role)</option>
+                            }
+                        </select>
+                        @if (transfer.DepartmentId > 0 && !sourceAccounts.Any())
+                        {
+                            <small class="text-warning">
+                                В этом отделе нет сотрудников.
+                                <a href="/accounts">Добавьте сотрудника</a>
+                            </small>
+                        }
+                        else if (transfer.AccountId == 0 && sourceAccounts.Any())
+                        {
+                            <small class="text-danger">Выберите сотрудника</small>
+                        }
+                    </div>
+                </div>
+
+                <!-- Отдел-получатель -->
+                <div class="col-md-6">
+                    <h5>Отдел-получатель</h5>
+
+                    <div class="mb-3">
+                        <label class="form-label">Целевой отдел</label>
+                        <InputSelect class="form-control" @bind-Value="transfer.TargetDepartmentId">
+                            <option value="0">-- Выберите отдел --</option>
+                            @foreach (var dept in departments.Where(d => d.Id != transfer.DepartmentId))
+                            {
+                                <option value="@dept.Id">@dept.Name</option>
+                            }
+                        </InputSelect>
+                        @if (!transfer.TargetDepartmentId.HasValue || transfer.TargetDepartmentId == 0)
+                        {
+                            <small class="text-danger">Выберите целевой отдел</small>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Информация</label>
+                        <div class="alert alert-info">
+                            <small>
+                                <strong>Важно:</strong> Будет создана одна транзакция типа "Внутренний перевод".<br />
+                                Она уменьшит баланс отдела-отправителя и увеличит баланс отдела-получателя,<br />
+                                но <strong>не повлияет</strong> на общий баланс компании.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Детали перевода -->
+            <div class="mb-3">
+                <label class="form-label">Сумма перевода (руб.)</label>
+                <InputNumber class="form-control" @bind-Value="transfer.Amount" />
+                <ValidationMessage For="@(() => transfer.Amount)" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Назначение перевода</label>
+                <InputText class="form-control"
+                           @bind-Value="transfer.Description"
+                           placeholder="Например: Выделение бюджета на рекламную кампанию" />
+                <ValidationMessage For="@(() => transfer.Description)" />
+            </div>
+
+            <!-- Кнопки действий -->
+            <div class="d-flex gap-2">
+                <button type="submit"
+                        class="btn btn-primary"
+                        disabled="@(!CanSubmit())">
+                    <span class="bi bi-check-circle"></span> Выполнить перевод
+                </button>
+                <a href="/transactions" class="btn btn-secondary">
+                    <span class="bi bi-x-circle"></span> Отмена
+                </a>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+<!-- История переводов -->
+@if (recentTransfers.Any())
+{
+    <h4 class="mt-4">Последние межотдельские переводы</h4>
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Дата</th>
+                <th>От отдела</th>
+                <th>К отделу</th>
+                <th>Сумма</th>
+                <th>Описание</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var t in recentTransfers)
+            {
+                var sourceDept = departments.FirstOrDefault(d => d.Id == t.DepartmentId)?.Name ?? "Н/Д";
+                var targetDept = departments.FirstOrDefault(d => d.Id == t.TargetDepartmentId)?.Name ?? "Н/Д";
+
+                <tr>
+                    <td>@t.Date.ToShortDateString()</td>
+                    <td>
+                        <span class="badge bg-danger">@sourceDept</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-success">@targetDept</span>
+                    </td>
+                    <td class="fw-bold">@t.Amount.ToString("N2") руб.</td>
+                    <td>@t.Description</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <div class="alert alert-info mt-4">
+        <span class="bi bi-info-circle"></span> История межотдельских переводов пуста
+    </div>
+}
+
+@code {
+    private Transaction transfer = new()
+    {
+        OperationType = "Межотдельский перевод",
+        Date = DateTime.UtcNow
+    };
+
+    private List<Department> departments = new();
+    private List<Account> sourceAccounts = new();
+    private List<Transaction> recentTransfers = new();
+    private int selectedSourceDepartmentId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await DepartmentService.SeedDataAsync();
+        await AccountService.SeedAccountsAsync();
+
+        departments = await DepartmentService.GetDepartmentsAsync();
+
+        // Загружаем последние межотдельские переводы
+        var allTransactions = await TransactionService.GetTransactionsAsync();
+        recentTransfers = allTransactions
+            .Where(t => t.OperationType == "Межотдельский перевод" ||
+                       (t.TargetDepartmentId.HasValue && t.TargetDepartmentId > 0))
+            .OrderByDescending(t => t.Date)
+            .Take(5)
+            .ToList();
+    }
+
+    private async Task OnSourceDepartmentChanged()
+    {
+        transfer.DepartmentId = selectedSourceDepartmentId;
+
+        if (selectedSourceDepartmentId > 0)
+        {
+            sourceAccounts = await AccountService.GetAccountsByDepartmentAsync(selectedSourceDepartmentId);
+        }
+        else
+        {
+            sourceAccounts.Clear();
+        }
+
+        transfer.AccountId = 0; // Сброс выбранного сотрудника
+    }
+
+    private bool CanSubmit()
+    {
+        return transfer.DepartmentId > 0
+            && transfer.AccountId > 0
+            && transfer.TargetDepartmentId.HasValue
+            && transfer.TargetDepartmentId > 0
+            && transfer.TargetDepartmentId != transfer.DepartmentId
+            && transfer.Amount > 0
+            && !string.IsNullOrWhiteSpace(transfer.Description);
+    }
+
+    private async Task HandleTransfer()
+    {
+        if (!CanSubmit())
+            return;
+
+        var sourceDeptName = departments.FirstOrDefault(d => d.Id == transfer.DepartmentId)?.Name ?? "Н/Д";
+        var targetDeptName = departments.FirstOrDefault(d => d.Id == transfer.TargetDepartmentId)?.Name ?? "Н/Д";
+
+        // Создаём ОДНУ транзакцию типа "Внутренний перевод"
+        var transferTransaction = new Transaction
+        {
+            Date = transfer.Date,
+            OperationType = "Внутренний перевод", // Отдельный тип!
+            Amount = transfer.Amount,
+            Description = $"Перевод из '{sourceDeptName}' в '{targetDeptName}': {transfer.Description}",
+            AccountId = transfer.AccountId,
+            DepartmentId = transfer.DepartmentId, // Отдел-отправитель
+            TargetDepartmentId = transfer.TargetDepartmentId // Отдел-получатель
+        };
+
+        await TransactionService.AddTransactionAsync(transferTransaction);
+        NavManager.NavigateTo("/transactions");
+    }
+
+}
