@@ -3,11 +3,13 @@
 @using TheFinalProject.Data.Services
 @inject TransactionService TransactionService
 @inject DepartmentService DepartmentService
+@inject AccountService AccountService
+@inject NavigationManager NavManager
 
-<h3>Журнал учёта</h3>
+<h3>Журнал транзакций</h3>
 
 <div class="row mb-3">
-    <div class="col-md-4">
+    <div class="col-md-8">
         <select class="form-control" @onchange="LoadFilteredTransactions">
             <option value="0">Все отделы</option>
             @foreach (var dept in departments)
@@ -17,57 +19,142 @@
         </select>
     </div>
     <div class="col-md-4 text-end">
-        <h5>Общий баланс: @transactions.Sum(t => t.OperationType == "Приход" ? t.Amount : -t.Amount) руб.</h5>
-    </div>
-    <div class="col-md-4 text-end">
         <a href="add-transaction" class="btn btn-success">+ Добавить запись</a>
     </div>
 </div>
 
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Дата</th>
-            <th>Отдел</th>
-            <th>Тип</th>
-            <th>Описание</th>
-            <th>Сумма</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var t in transactions)
-        {
-            <tr class="@(t.OperationType == "Расход" ? "table-danger" : "table-success")">
-                <td>@t.Date.ToShortDateString()</td>
-                <td>@(departments.FirstOrDefault(d => d.Id == t.DepartmentId)?.Name ?? "Н/Д")</td>
-                <td>@t.OperationType</td>
-                <td>@t.Description</td>
-                <td>@t.Amount</td>
+@if (editingTransaction != null)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Редактирование транзакции</h5>
+            <EditForm Model="editingTransaction" OnValidSubmit="SaveEdit">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+
+                <div class="mb-3">
+                    <label>Дата</label>
+                    <InputDate class="form-control" @bind-Value="editingTransaction.Date" />
+                    <ValidationMessage For="@(() => editingTransaction.Date)" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Отдел</label>
+                    <InputSelect class="form-control" @bind-Value="editingTransaction.DepartmentId" @onchange="OnEditDepartmentChanged">
+                        <option value="0">-- Выберите отдел --</option>
+                        @foreach (var dept in departments)
+                        {
+                            <option value="@dept.Id">@dept.Name</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => editingTransaction.DepartmentId)" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Сотрудник</label>
+                    <InputSelect class="form-control" @bind-Value="editingTransaction.AccountId">
+                        <option value="0">-- Выберите сотрудника --</option>
+                        @foreach (var acc in editAvailableAccounts)
+                        {
+                            <option value="@acc.Id">@acc.DisplayName (@acc.Role)</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => editingTransaction.AccountId)" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Тип операции</label>
+                    <InputSelect class="form-control" @bind-Value="editingTransaction.OperationType">
+                        <option value="">-- Выберите --</option>
+                        <option value="Приход">Приход</option>
+                        <option value="Расход">Расход</option>
+                        <option value="Внутренний перевод">Внутренний перевод</option>
+                    </InputSelect>
+                    <ValidationMessage For="@(() => editingTransaction.OperationType)" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Сумма</label>
+                    <InputNumber class="form-control" @bind-Value="editingTransaction.Amount" />
+                    <ValidationMessage For="@(() => editingTransaction.Amount)" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Описание</label>
+                    <InputText class="form-control" @bind-Value="editingTransaction.Description" />
+                    <ValidationMessage For="@(() => editingTransaction.Description)" />
+                </div>
+
+                <button type="submit" class="btn btn-success">Сохранить</button>
+                <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Отмена</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (transactions == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!transactions.Any())
+{
+    <p><em>Записей пока нет. Добавьте первую транзакцию.</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Отдел</th>
+                <th>Сотрудник</th>
+                <th>Тип</th>
+                <th>Описание</th>
+                <th>Сумма</th>
+                <th>Действия</th>
             </tr>
-        }
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+            @foreach (var t in transactions)
+            {
+                <tr class="@(t.OperationType == "Расход" ? "table-danger" : "")">
+                    <td>@t.Date.ToShortDateString()</td>
+                    <td>@(departments.FirstOrDefault(d => d.Id == t.DepartmentId)?.Name ?? "Н/Д")</td>
+                    <td>@(allAccounts.FirstOrDefault(a => a.Id == t.AccountId)?.DisplayName ?? "Н/Д")</td>
+                    <td>@t.OperationType</td>
+                    <td>@t.Description</td>
+                    <td>@t.Amount руб.</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" @onclick="() => StartEdit(t.Id)">Изменить</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteTransaction(t.Id)">Удалить</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
 
 @code {
     private List<Transaction> transactions = new();
     private List<Department> departments = new();
+    private List<Account> allAccounts = new();
+    private Transaction? editingTransaction = null;
+    private List<Account> editAvailableAccounts = new();
 
     protected override async Task OnInitializedAsync()
     {
-        departments = await DepartmentService.GetDepartmentsAsync();
-        // Первоначальная загрузка - может быть пустой
-        transactions = await TransactionService.GetTransactionsAsync();
-
-        // Опционально: заполнить тестовыми данными, если пусто
         await DepartmentService.SeedDataAsync();
+        await AccountService.SeedAccountsAsync();
+
+        departments = await DepartmentService.GetDepartmentsAsync();
+        allAccounts = await AccountService.GetAllAccountsAsync();
+        transactions = await TransactionService.GetTransactionsAsync();
     }
 
     private async Task LoadFilteredTransactions(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out int deptId) && deptId > 0)
         {
-            // Тут нужно добавить метод фильтрации в сервис, пока загрузим все и отфильтруем в памяти
-            // В реальном проекте лучше фильтровать в SQL запросе
             var all = await TransactionService.GetTransactionsAsync();
             transactions = all.Where(t => t.DepartmentId == deptId).ToList();
         }
@@ -76,4 +163,61 @@
             transactions = await TransactionService.GetTransactionsAsync();
         }
     }
+
+    private async Task StartEdit(int id)
+    {
+        var transaction = await TransactionService.GetTransactionByIdAsync(id);
+        if (transaction != null)
+        {
+            editingTransaction = new Transaction
+            {
+                Id = transaction.Id,
+                Date = transaction.Date,
+                OperationType = transaction.OperationType,
+                Amount = transaction.Amount,
+                Description = transaction.Description,
+                AccountId = transaction.AccountId,
+                DepartmentId = transaction.DepartmentId
+            };
+
+            editAvailableAccounts = await AccountService.GetAccountsByDepartmentAsync(editingTransaction.DepartmentId);
+        }
+    }
+
+    private async Task OnEditDepartmentChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int deptId) && deptId > 0 && editingTransaction != null)
+        {
+            editingTransaction.DepartmentId = deptId;
+            editAvailableAccounts = await AccountService.GetAccountsByDepartmentAsync(deptId);
+            editingTransaction.AccountId = 0; // Сброс выбранного сотрудника
+        }
+    }
+
+    private async Task SaveEdit()
+    {
+        if (editingTransaction != null)
+        {
+            await TransactionService.UpdateTransactionAsync(editingTransaction);
+            editingTransaction = null;
+            transactions = await TransactionService.GetTransactionsAsync();
+        }
+    }
+
+    private void CancelEdit()
+    {
+        editingTransaction = null;
+    }
+
+    private async Task DeleteTransaction(int id)
+    {
+        if (confirm("Вы уверены, что хотите удалить эту транзакцию?"))
+        {
+            await TransactionService.DeleteTransactionAsync(id);
+            transactions = await TransactionService.GetTransactionsAsync();
+        }
+    }
+
+    [JSInvokable]
+    public static bool confirm(string message) => true; // Для демо, замени на JS Interop
 }

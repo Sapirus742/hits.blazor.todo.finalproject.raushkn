@@ -1,0 +1,111 @@
+﻿@page "/accounts"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject AccountService AccountService
+@inject DepartmentService DepartmentService
+
+<h3>Управление сотрудниками</h3>
+
+<div class="row mb-3">
+    <div class="col-md-12">
+        <button class="btn btn-primary" @onclick="ShowAddForm">+ Добавить сотрудника</button>
+    </div>
+</div>
+
+@if (showAddForm)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Новый сотрудник</h5>
+            <EditForm Model="newAccount" OnValidSubmit="AddAccount">
+                <div class="mb-3">
+                    <label>Имя</label>
+                    <InputText class="form-control" @bind-Value="newAccount.DisplayName" />
+                </div>
+                <div class="mb-3">
+                    <label>Должность</label>
+                    <InputText class="form-control" @bind-Value="newAccount.Role" />
+                </div>
+                <div class="mb-3">
+                    <label>Отдел</label>
+                    <InputSelect class="form-control" @bind-Value="newAccount.DepartmentId">
+                        <option value="0">-- Выберите отдел --</option>
+                        @foreach (var dept in departments)
+                        {
+                            <option value="@dept.Id">@dept.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <button type="submit" class="btn btn-success">Сохранить</button>
+                <button type="button" class="btn btn-secondary" @onclick="() => showAddForm = false">Отмена</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (accounts == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!accounts.Any())
+{
+    <p><em>Сотрудников пока нет.</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Имя</th>
+                <th>Должность</th>
+                <th>Отдел</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var acc in accounts)
+            {
+                <tr>
+                    <td>@acc.Id</td>
+                    <td>@acc.DisplayName</td>
+                    <td>@acc.Role</td>
+                    <td>@(departments.FirstOrDefault(d => d.Id == acc.DepartmentId)?.Name ?? "Н/Д")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Account> accounts = new();
+    private List<Department> departments = new();
+    private Account newAccount = new();
+    private bool showAddForm = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        departments = await DepartmentService.GetDepartmentsAsync();
+        accounts = await AccountService.GetAllAccountsAsync();
+    }
+
+    private void ShowAddForm()
+    {
+        showAddForm = true;
+        newAccount = new Account();
+    }
+
+    private async Task AddAccount()
+    {
+        if (newAccount.DepartmentId > 0)
+        {
+            await AccountService.CreateAccountAsync(newAccount);
+            showAddForm = false;
+            await LoadData();
+        }
+    }
+}

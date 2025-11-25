@@ -1,0 +1,162 @@
+﻿@page "/reports"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject TransactionService TransactionService
+@inject DepartmentService DepartmentService
+@inject IJSRuntime JS
+
+<h3>Финансовые отчёты</h3>
+
+@if (transactions == null || departments == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">Общий приход</h5>
+                    <h2>@totalIncome.ToString("N2") руб.</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h5 class="card-title">Общий расход</h5>
+                    <h2>@totalExpense.ToString("N2") руб.</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">Баланс</h5>
+                    <h2>@balance.ToString("N2") руб.</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Распределение по типам операций</h5>
+                    <canvas id="operationsChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Баланс по отделам</h5>
+                    <canvas id="departmentsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h4>Баланс по отделам</h4>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Отдел</th>
+                <th>Приход</th>
+                <th>Расход</th>
+                <th>Баланс</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var dept in departments)
+            {
+                var deptTransactions = transactions.Where(t => t.DepartmentId == dept.Id).ToList();
+                var deptIncome = deptTransactions.Where(t => t.OperationType == "Приход").Sum(t => t.Amount);
+                var deptExpense = deptTransactions.Where(t => t.OperationType == "Расход").Sum(t => t.Amount);
+                var deptBalance = deptIncome - deptExpense;
+
+                <tr>
+                    <td>@dept.Name</td>
+                    <td class="text-success">@deptIncome.ToString("N2") руб.</td>
+                    <td class="text-danger">@deptExpense.ToString("N2") руб.</td>
+                    <td class="@(deptBalance >= 0 ? "text-success" : "text-danger")">@deptBalance.ToString("N2") руб.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Transaction> transactions = new();
+    private List<Department> departments = new();
+
+    private decimal totalIncome;
+    private decimal totalExpense;
+    private decimal balance;
+
+    protected override async Task OnInitializedAsync()
+    {
+        departments = await DepartmentService.GetDepartmentsAsync();
+        transactions = await TransactionService.GetTransactionsAsync();
+
+        CalculateTotals();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && transactions.Any())
+        {
+            await RenderCharts();
+        }
+    }
+
+    private void CalculateTotals()
+    {
+        totalIncome = transactions.Where(t => t.OperationType == "Приход").Sum(t => t.Amount);
+        totalExpense = transactions.Where(t => t.OperationType == "Расход").Sum(t => t.Amount);
+        balance = totalIncome - totalExpense;
+    }
+
+    private async Task RenderCharts()
+    {
+        // График типов операций
+        await JS.InvokeVoidAsync("eval", $@"
+            new Chart(document.getElementById('operationsChart'), {{
+                type: 'pie',
+                data: {{
+                    labels: ['Приход', 'Расход'],
+                    datasets: [{{
+                        data: [{totalIncome}, {totalExpense}],
+                        backgroundColor: ['#28a745', '#dc3545']
+                    }}]
+                }}
+            }});
+        ");
+
+        // График балансов отделов
+        var deptNames = string.Join(",", departments.Select(d => $"'{d.Name}'"));
+        var deptBalances = string.Join(",", departments.Select(d =>
+        {
+            var deptTrans = transactions.Where(t => t.DepartmentId == d.Id);
+            var income = deptTrans.Where(t => t.OperationType == "Приход").Sum(t => t.Amount);
+            var expense = deptTrans.Where(t => t.OperationType == "Расход").Sum(t => t.Amount);
+            return income - expense;
+        }));
+
+        await JS.InvokeVoidAsync("eval", $@"
+            new Chart(document.getElementById('departmentsChart'), {{
+                type: 'bar',
+                data: {{
+                    labels: [{deptNames}],
+                    datasets: [{{
+                        label: 'Баланс (руб.)',
+                        data: [{deptBalances}],
+                        backgroundColor: '#17a2b8'
+                    }}]
+                }}
+            }});
+        ");
+    }
+}

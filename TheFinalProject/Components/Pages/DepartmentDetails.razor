@@ -1,0 +1,111 @@
+﻿@page "/department-details/{DepartmentId:int}"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject DepartmentService DepartmentService
+@inject AccountService AccountService
+@inject TransactionService TransactionService
+
+<h3>Отдел: @department?.Name</h3>
+
+@if (department == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Сотрудники отдела</h5>
+                    @if (!accounts.Any())
+                    {
+                        <p><em>Сотрудников нет</em></p>
+                    }
+                    else
+                    {
+                        <ul class="list-group">
+                            @foreach (var acc in accounts)
+                            {
+                                <li class="list-group-item">
+                                    <strong>@acc.DisplayName</strong> — @acc.Role
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Финансовая статистика</h5>
+                    <p>Приход: <strong class="text-success">@income руб.</strong></p>
+                    <p>Расход: <strong class="text-danger">@expense руб.</strong></p>
+                    <p>Баланс: <strong class="@(balance >= 0 ? "text-success" : "text-danger")">@balance руб.</strong></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h4>Транзакции отдела</h4>
+    @if (!transactions.Any())
+    {
+        <p><em>Транзакций нет</em></p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Тип</th>
+                    <th>Сумма</th>
+                    <th>Описание</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in transactions.OrderByDescending(t => t.Date))
+                {
+                    <tr>
+                        <td>@t.Date.ToShortDateString()</td>
+                        <td>
+                            <span class="badge @(t.OperationType == "Приход" ? "bg-success" : "bg-danger")">
+                                @t.OperationType
+                            </span>
+                        </td>
+                        <td>@t.Amount руб.</td>
+                        <td>@t.Description</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [Parameter]
+    public int DepartmentId { get; set; }
+
+    private Department? department;
+    private List<Account> accounts = new();
+    private List<Transaction> transactions = new();
+
+    private decimal income;
+    private decimal expense;
+    private decimal balance;
+
+    protected override async Task OnInitializedAsync()
+    {
+        department = await DepartmentService.GetDepartmentByIdAsync(DepartmentId);
+        accounts = await AccountService.GetAccountsByDepartmentAsync(DepartmentId);
+
+        var allTransactions = await TransactionService.GetTransactionsAsync();
+        transactions = allTransactions.Where(t => t.DepartmentId == DepartmentId).ToList();
+
+        income = transactions.Where(t => t.OperationType == "Приход").Sum(t => t.Amount);
+        expense = transactions.Where(t => t.OperationType == "Расход").Sum(t => t.Amount);
+        balance = income - expense;
+    }
+}

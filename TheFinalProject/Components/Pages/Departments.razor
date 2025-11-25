@@ -1,0 +1,91 @@
+﻿@page "/departments"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject DepartmentService DepartmentService
+
+<h3>Управление отделами</h3>
+
+<div class="row mb-3">
+    <div class="col-md-12">
+        <button class="btn btn-primary" @onclick="ShowAddForm">+ Добавить отдел</button>
+    </div>
+</div>
+
+@if (showAddForm)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Новый отдел</h5>
+            <EditForm Model="newDepartment" OnValidSubmit="AddDepartment">
+                <div class="mb-3">
+                    <label>Название отдела</label>
+                    <InputText class="form-control" @bind-Value="newDepartment.Name" />
+                </div>
+                <button type="submit" class="btn btn-success">Сохранить</button>
+                <button type="button" class="btn btn-secondary" @onclick="() => showAddForm = false">Отмена</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@if (departments == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!departments.Any())
+{
+    <p><em>Отделов пока нет.</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Название</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var dept in departments)
+            {
+                <tr>
+                    <td>@dept.Id</td>
+                    <td>@dept.Name</td>
+                    <td>
+                        <a href="/department-details/@dept.Id" class="btn btn-sm btn-info">Подробнее</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Department> departments = new();
+    private Department newDepartment = new();
+    private bool showAddForm = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDepartments();
+    }
+
+    private async Task LoadDepartments()
+    {
+        departments = await DepartmentService.GetDepartmentsAsync();
+    }
+
+    private void ShowAddForm()
+    {
+        showAddForm = true;
+        newDepartment = new Department();
+    }
+
+    private async Task AddDepartment()
+    {
+        await DepartmentService.AddDepartmentAsync(newDepartment);
+        showAddForm = false;
+        await LoadDepartments();
+    }
+}
