@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TheFinalProject.Components;
 using TheFinalProject.Components.Account;
 using TheFinalProject.Data;
+using TheFinalProject.Data.Services;
 
 namespace TheFinalProject
 {
@@ -16,6 +17,12 @@ namespace TheFinalProject
             // Add services to the container.
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
+
+            builder.Services.AddDbContext<JournalDbContext>(options =>
+    options.UseInMemoryDatabase("JournalDb"));
+            builder.Services.AddScoped<TransactionService>();
+            builder.Services.AddScoped<AccountService>();
+            builder.Services.AddScoped<DepartmentService>();
 
             builder.Services.AddCascadingAuthenticationState();
             builder.Services.AddScoped<IdentityUserAccessor>();

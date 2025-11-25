@@ -1,5 +1,86 @@
-﻿<h3>AddTransaction</h3>
+﻿@page "/add-transaction"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject TransactionService TransactionService
+@inject DepartmentService DepartmentService
+@inject AccountService AccountService
+@inject NavigationManager NavManager
+
+<h3>Новая запись в журнал</h3>
+
+<EditForm Model="transaction" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+
+    <div class="mb-3">
+        <label>Отдел</label>
+        <select class="form-control" @onchange="OnDepartmentChanged">
+            <option value="">-- Выберите отдел --</option>
+            @foreach (var dept in departments)
+            {
+                <option value="@dept.Id">@dept.Name</option>
+            }
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label>Сотрудник / Учетная запись</label>
+        <select class="form-control" @bind="transaction.AccountId">
+            <option value="">-- Выберите сотрудника --</option>
+            @foreach (var acc in availableAccounts)
+            {
+                <option value="@acc.Id">@acc.DisplayName (@acc.Role)</option>
+            }
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label>Тип операции</label>
+        <InputSelect class="form-control" @bind-Value="transaction.OperationType">
+            <option value="Приход">Приход</option>
+            <option value="Расход">Расход</option>
+            <option value="Внутренний перевод">Внутренний перевод</option>
+        </InputSelect>
+    </div>
+
+    <div class="mb-3">
+        <label>Сумма</label>
+        <InputNumber class="form-control" @bind-Value="transaction.Amount" />
+    </div>
+
+    <div class="mb-3">
+        <label>Описание</label>
+        <InputText class="form-control" @bind-Value="transaction.Description" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+</EditForm>
 
 @code {
+    private Transaction transaction = new() { Date = DateTime.UtcNow };
+    private List<Department> departments = new();
+    private List<Account> availableAccounts = new();
 
+    protected override async Task OnInitializedAsync()
+    {
+        departments = await DepartmentService.GetDepartmentsAsync();
+    }
+
+    private async Task OnDepartmentChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int deptId))
+        {
+            transaction.DepartmentId = deptId;
+            availableAccounts = await AccountService.GetAccountsByDepartmentAsync(deptId);
+        }
+        else
+        {
+            availableAccounts.Clear();
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        await TransactionService.AddTransactionAsync(transaction);
+        NavManager.NavigateTo("/transactions");
+    }
 }
