@@ -45,19 +45,25 @@ else
             <div class="card">
                 <div class="card-body">
                     <h5>Распределение по типам операций</h5>
-                    <canvas id="operationsChart"></canvas>
+                    <div class="chart-container">
+                        <canvas id="operationsChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
+
         <div class="col-md-6">
             <div class="card">
                 <div class="card-body">
                     <h5>Баланс по отделам</h5>
-                    <canvas id="departmentsChart"></canvas>
+                    <div class="chart-container">
+                        <canvas id="departmentsChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
 
     <h4>Баланс по отделам</h4>
     <table class="table table-bordered">
@@ -87,6 +93,18 @@ else
         </tbody>
     </table>
 }
+
+<style>
+    .chart-container {
+        position: relative;
+        height: 300px;
+        max-height: 400px;
+    }
+
+    canvas {
+        max-height: 100%;
+    }
+</style>
 
 @code {
     private List<Transaction> transactions = new();
