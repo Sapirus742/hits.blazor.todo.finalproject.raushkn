@@ -43,31 +43,43 @@ else
         <ValidationSummary class="text-danger" />
 
         <div class="mb-3">
-            <label>Отдел</label>
-            <InputSelect class="form-control" @bind-Value="transaction.DepartmentId" @onchange="OnDepartmentChanged">
+            <label class="form-label">Отдел</label>
+            <select class="form-control"
+                    @bind="selectedDepartmentId"
+                    @bind:after="OnDepartmentChanged">
                 <option value="0">-- Выберите отдел --</option>
                 @foreach (var dept in departments)
                 {
                     <option value="@dept.Id">@dept.Name</option>
                 }
-            </InputSelect>
-            <ValidationMessage For="@(() => transaction.DepartmentId)" />
+            </select>
+            @if (transaction.DepartmentId == 0)
+            {
+                <small class="text-danger">Выберите отдел</small>
+            }
         </div>
 
         <div class="mb-3">
-            <label>Сотрудник / Учетная запись</label>
-            <InputSelect class="form-control" @bind-Value="transaction.AccountId">
+            <label class="form-label">Сотрудник / Учетная запись</label>
+            <select class="form-control" @bind="transaction.AccountId">
                 <option value="0">-- Выберите сотрудника --</option>
                 @foreach (var acc in availableAccounts)
                 {
                     <option value="@acc.Id">@acc.DisplayName (@acc.Role)</option>
                 }
-            </InputSelect>
-            <ValidationMessage For="@(() => transaction.AccountId)" />
+            </select>
+            @if (transaction.DepartmentId > 0 && !availableAccounts.Any())
+            {
+                <small class="text-warning">В этом отделе нет сотрудников</small>
+            }
+            else if (transaction.AccountId == 0 && availableAccounts.Any())
+            {
+                <small class="text-danger">Выберите сотрудника</small>
+            }
         </div>
 
         <div class="mb-3">
-            <label>Тип операции</label>
+            <label class="form-label">Тип операции</label>
             <InputSelect class="form-control" @bind-Value="transaction.OperationType">
                 <option value="">-- Выберите тип --</option>
                 <option value="Приход">Приход</option>
@@ -77,13 +89,13 @@ else
         </div>
 
         <div class="mb-3">
-            <label>Сумма</label>
+            <label class="form-label">Сумма</label>
             <InputNumber class="form-control" @bind-Value="transaction.Amount" />
             <ValidationMessage For="@(() => transaction.Amount)" />
         </div>
 
         <div class="mb-3">
-            <label>Описание</label>
+            <label class="form-label">Описание</label>
             <InputText class="form-control" @bind-Value="transaction.Description" />
             <ValidationMessage For="@(() => transaction.Description)" />
         </div>
@@ -98,6 +110,7 @@ else
     private List<Department> departments = new();
     private List<Account> availableAccounts = new();
     private bool showForm = false;
+    private int selectedDepartmentId = 0; // Отдельная переменная для отслеживания
 
     protected override async Task OnInitializedAsync()
     {
@@ -116,17 +129,21 @@ else
         NavManager.NavigateTo("/department-transfer");
     }
 
-    private async Task OnDepartmentChanged(ChangeEventArgs e)
+    private async Task OnDepartmentChanged()
     {
-        if (int.TryParse(e.Value?.ToString(), out int deptId) && deptId > 0)
+        transaction.DepartmentId = selectedDepartmentId;
+
+        if (selectedDepartmentId > 0)
         {
-            transaction.DepartmentId = deptId;
-            availableAccounts = await AccountService.GetAccountsByDepartmentAsync(deptId);
+            availableAccounts = await AccountService.GetAccountsByDepartmentAsync(selectedDepartmentId);
+            Console.WriteLine($"Loaded {availableAccounts.Count} accounts for department {selectedDepartmentId}");
         }
         else
         {
             availableAccounts.Clear();
         }
+
+        transaction.AccountId = 0; // Сброс выбранного сотрудника
     }
 
     private async Task HandleValidSubmit()
