@@ -3,109 +3,296 @@
 @using TheFinalProject.Data.Services
 @inject AccountService AccountService
 @inject DepartmentService DepartmentService
+@inject NavigationManager NavManager
 
-<h3>Управление сотрудниками</h3>
+<h3>Сотрудники</h3>
 
-<div class="row mb-3">
-    <div class="col-md-12">
-        <button class="btn btn-primary" @onclick="ShowAddForm">+ Добавить сотрудника</button>
-    </div>
+<div class="mb-3">
+    <a href="/accounts/add" class="btn btn-primary">
+        <span class="bi bi-plus-circle"></span> Добавить сотрудника
+    </a>
 </div>
 
-@if (showAddForm)
-{
-    <div class="card mb-3">
-        <div class="card-body">
-            <h5>Новый сотрудник</h5>
-            <EditForm Model="newAccount" OnValidSubmit="AddAccount">
-                <div class="mb-3">
-                    <label>Имя</label>
-                    <InputText class="form-control" @bind-Value="newAccount.DisplayName" />
-                </div>
-                <div class="mb-3">
-                    <label>Должность</label>
-                    <InputText class="form-control" @bind-Value="newAccount.Role" />
-                </div>
-                <div class="mb-3">
-                    <label>Отдел</label>
-                    <InputSelect class="form-control" @bind-Value="newAccount.DepartmentId">
-                        <option value="0">-- Выберите отдел --</option>
-                        @foreach (var dept in departments)
-                        {
-                            <option value="@dept.Id">@dept.Name</option>
-                        }
-                    </InputSelect>
-                </div>
-                <button type="submit" class="btn btn-success">Сохранить</button>
-                <button type="button" class="btn btn-secondary" @onclick="() => showAddForm = false">Отмена</button>
-            </EditForm>
-        </div>
-    </div>
-}
+<!-- Фильтр по отделам -->
+<div class="mb-3">
+    <label class="form-label">Фильтр по отделу:</label>
+    <select class="form-select" style="max-width: 300px;" @bind="selectedDepartmentId" @bind:after="FilterAccounts">
+        <option value="0">Все отделы</option>
+        @foreach (var dept in departments)
+        {
+            <option value="@dept.Id">@dept.Name</option>
+        }
+    </select>
+</div>
 
-@if (accounts == null)
+@if (filteredAccounts == null)
 {
     <p><em>Загрузка...</em></p>
 }
-else if (!accounts.Any())
+else if (!filteredAccounts.Any())
 {
-    <p><em>Сотрудников пока нет.</em></p>
+    <div class="alert alert-info">
+        @if (selectedDepartmentId == 0)
+        {
+            <text>Сотрудников пока нет. <a href="/accounts/add">Добавьте первого сотрудника</a></text>
+        }
+        else
+        {
+            <text>В этом отделе нет сотрудников.</text>
+        }
+    </div>
 }
 else
 {
-    <table class="table table-striped">
+    <table class="table table-striped table-hover">
         <thead>
             <tr>
                 <th>ID</th>
                 <th>Имя</th>
                 <th>Должность</th>
                 <th>Отдел</th>
+                <th>Тип</th>
+                <th>Действия</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var acc in accounts)
+            @foreach (var account in filteredAccounts)
             {
+                var department = departments.FirstOrDefault(d => d.Id == account.DepartmentId);
+                var isIntern = account is Intern;
+                var isEditing = editingAccountId == account.Id;
+
                 <tr>
-                    <td>@acc.Id</td>
-                    <td>@acc.DisplayName</td>
-                    <td>@acc.Role</td>
-                    <td>@(departments.FirstOrDefault(d => d.Id == acc.DepartmentId)?.Name ?? "Н/Д")</td>
+                    <td>@account.Id</td>
+                    <td>
+                        @if (isEditing)
+                        {
+                            <input type="text" class="form-control form-control-sm" @bind="editingDisplayName" />
+                        }
+                        else
+                        {
+                            <strong>@account.DisplayName</strong>
+                        }
+                    </td>
+                    <td>
+                        @if (isEditing)
+                        {
+                            <input type="text" class="form-control form-control-sm" @bind="editingRole" />
+                        }
+                        else
+                        {
+                            @account.Role
+                        }
+                    </td>
+                    <td>
+                        @if (isEditing)
+                        {
+                            <select class="form-select form-select-sm" @bind="editingDepartmentId">
+                                @foreach (var dept in departments)
+                                {
+                                    <option value="@dept.Id">@dept.Name</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            @department?.Name
+                        }
+                    </td>
+                    <td>
+                        @if (isIntern)
+                        {
+                            <span class="badge bg-info">Стажер</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Сотрудник</span>
+                        }
+                    </td>
+                    <td>
+                        @if (isEditing)
+                        {
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-success"
+                                        @onclick="() => SaveAccount(account)">
+                                    Сохранить
+                                </button>
+                                <button class="btn btn-sm btn-secondary"
+                                        @onclick="CancelEdit">
+                                    Отмена
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="() => StartEdit(account)">
+                                    Изменить
+                                </button>
+                                <button class="btn btn-sm btn-danger"
+                                        @onclick="() => ShowDeleteConfirmation(account)">
+                                    Удалить
+                                </button>
+                            </div>
+                        }
+                    </td>
                 </tr>
             }
         </tbody>
     </table>
+
+    <div class="alert alert-secondary">
+        <strong>Всего:</strong> @filteredAccounts.Count сотрудников
+        (@filteredAccounts.Count(a => a is Intern) стажеров,
+        @filteredAccounts.Count(a => a is not Intern) основных)
+    </div>
+}
+
+<!-- Модальное окно подтверждения удаления -->
+@if (showDeleteModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Подтверждение удаления</h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Внимание!</strong> Это действие необратимо.
+                    </div>
+                    <p>Вы уверены, что хотите удалить сотрудника?</p>
+                    @if (accountToDelete != null)
+                    {
+                        <div class="card">
+                            <div class="card-body">
+                                <p class="mb-1"><strong>Имя:</strong> @accountToDelete.DisplayName</p>
+                                <p class="mb-1"><strong>Должность:</strong> @accountToDelete.Role</p>
+                                <p class="mb-1"><strong>Отдел:</strong> @departments.FirstOrDefault(d => d.Id == accountToDelete.DepartmentId)?.Name</p>
+                                <p class="mb-0">
+                                    <strong>Тип:</strong>
+                                    @if (accountToDelete is Intern)
+                                    {
+                                        <span class="badge bg-info">Стажер</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Сотрудник</span>
+                                    }
+                                </p>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">
+                        Отмена
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">
+                        Удалить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
-    private List<Account> accounts = new();
+    private List<Account> allAccounts = new();
+    private List<Account> filteredAccounts = new();
     private List<Department> departments = new();
-    private Account newAccount = new();
-    private bool showAddForm = false;
+    private int selectedDepartmentId = 0;
+
+    // Для редактирования
+    private int? editingAccountId = null;
+    private string editingDisplayName = string.Empty;
+    private string editingRole = string.Empty;
+    private int editingDepartmentId = 0;
+
+    // Для удаления
+    private bool showDeleteModal = false;
+    private Account? accountToDelete = null;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadData();
-    }
-
-    private async Task LoadData()
-    {
+        allAccounts = await AccountService.GetAllAccountsAsync();
         departments = await DepartmentService.GetDepartmentsAsync();
-        accounts = await AccountService.GetAllAccountsAsync();
+        FilterAccounts();
     }
 
-    private void ShowAddForm()
+    private void FilterAccounts()
     {
-        showAddForm = true;
-        newAccount = new Account();
-    }
-
-    private async Task AddAccount()
-    {
-        if (newAccount.DepartmentId > 0)
+        if (selectedDepartmentId == 0)
         {
-            await AccountService.CreateAccountAsync(newAccount);
-            showAddForm = false;
-            await LoadData();
+            filteredAccounts = allAccounts;
         }
+        else
+        {
+            filteredAccounts = allAccounts
+                .Where(a => a.DepartmentId == selectedDepartmentId)
+                .ToList();
+        }
+    }
+
+    // Методы редактирования 
+
+    private void StartEdit(Account account)
+    {
+        editingAccountId = account.Id;
+        editingDisplayName = account.DisplayName;
+        editingRole = account.Role;
+        editingDepartmentId = account.DepartmentId;
+    }
+
+    private async Task SaveAccount(Account account)
+    {
+        account.DisplayName = editingDisplayName;
+        account.Role = editingRole;
+        account.DepartmentId = editingDepartmentId;
+
+        await AccountService.UpdateAccountAsync(account);
+
+        editingAccountId = null;
+
+        // Обновляем список
+        allAccounts = await AccountService.GetAllAccountsAsync();
+        FilterAccounts();
+    }
+
+    private void CancelEdit()
+    {
+        editingAccountId = null;
+        editingDisplayName = string.Empty;
+        editingRole = string.Empty;
+        editingDepartmentId = 0;
+    }
+
+    // Методы удаления
+
+    private void ShowDeleteConfirmation(Account account)
+    {
+        accountToDelete = account;
+        showDeleteModal = true;
+    }
+
+    private void CancelDelete()
+    {
+        accountToDelete = null;
+        showDeleteModal = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (accountToDelete != null)
+        {
+            await AccountService.DeleteAccountAsync(accountToDelete.Id);
+            allAccounts = await AccountService.GetAllAccountsAsync();
+            FilterAccounts();
+        }
+
+        accountToDelete = null;
+        showDeleteModal = false;
     }
 }

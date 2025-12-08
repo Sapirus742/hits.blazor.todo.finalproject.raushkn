@@ -1,0 +1,75 @@
+﻿@page "/accounts/add"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject AccountService AccountService
+@inject DepartmentService DepartmentService
+@inject NavigationManager NavManager
+
+<h3>Добавить сотрудника</h3>
+
+<div class="mb-3">
+    <label class="form-label">Тип сотрудника</label>
+    <select class="form-select" @bind="accountType">
+        <option value="regular">Обычный сотрудник</option>
+        <option value="intern">Стажер</option>
+    </select>
+</div>
+
+@if (accountType == "regular")
+{
+    <EditForm Model="account" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">Имя сотрудника</label>
+            <InputText class="form-control" @bind-Value="account.DisplayName" />
+            <ValidationMessage For="@(() => account.DisplayName)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Должность</label>
+            <InputText class="form-control" @bind-Value="account.Role" />
+            <ValidationMessage For="@(() => account.Role)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Отдел</label>
+            <InputSelect class="form-control" @bind-Value="account.DepartmentId">
+                <option value="0">-- Выберите отдел --</option>
+                @foreach (var dept in departments)
+                {
+                    <option value="@dept.Id">@dept.Name</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="@(() => account.DepartmentId)" />
+        </div>
+
+        <button type="submit" class="btn btn-success">Сохранить</button>
+        <a href="/accounts" class="btn btn-secondary">Отмена</a>
+    </EditForm>
+}
+else
+{
+    <div class="alert alert-info">
+        Для добавления стажера используйте <a href="/interns/add">страницу стажеров</a>
+    </div>
+    <a href="/interns/add" class="btn btn-primary">Перейти к добавлению стажера</a>
+}
+
+@code {
+    private Account account = new();
+    private List<Department> departments = new();
+    private string accountType = "regular";
+
+    protected override async Task OnInitializedAsync()
+    {
+        departments = await DepartmentService.GetDepartmentsAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        await AccountService.CreateAccountAsync(account);
+        NavManager.NavigateTo("/accounts");
+    }
+}

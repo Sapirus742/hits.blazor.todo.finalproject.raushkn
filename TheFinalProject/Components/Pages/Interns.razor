@@ -1,0 +1,344 @@
+﻿@page "/interns"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject AccountService AccountService
+@inject DepartmentService DepartmentService
+@inject NavigationManager NavManager
+
+<h3>Стажеры</h3>
+
+<div class="mb-3">
+    <a href="/interns/add" class="btn btn-primary">
+        Добавить стажера
+    </a>
+</div>
+
+@if (interns == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!interns.Any())
+{
+    <div class="alert alert-info">
+        Стажеров пока нет. <a href="/interns/add">Добавьте первого стажера</a>
+    </div>
+}
+else
+{
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Имя</th>
+                <th>Отдел</th>
+                <th>Куратор</th>
+                <th>Срок стажировки</th>
+                <th style="width: 250px;">Прогресс</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var intern in interns)
+            {
+                var department = departments.FirstOrDefault(d => d.Id == intern.DepartmentId);
+                var daysLeft = (intern.InternshipEndDate - DateTime.UtcNow).Days;
+                var progressClass = intern.CompletionPercentage >= 70 ? "bg-success"
+                : intern.CompletionPercentage >= 40 ? "bg-warning"
+                : "bg-danger";
+                var isEditingProgress = editingProgressInternId == intern.Id;
+                var isEditingInfo = editingInfoInternId == intern.Id;
+
+                <tr>
+                    <td>
+                        @if (isEditingInfo)
+                        {
+                            <input type="text" class="form-control form-control-sm mb-1" @bind="editingDisplayName" placeholder="Имя" />
+                            <input type="text" class="form-control form-control-sm" @bind="editingRole" placeholder="Должность" />
+                        }
+                        else
+                        {
+                            <strong>@intern.DisplayName</strong>
+                
+                            <br />
+                            <small class="text-muted">@intern.Role</small>
+                        }
+                    </td>
+                    <td>
+                        @if (isEditingInfo)
+                        {
+                            <select class="form-select form-select-sm" @bind="editingDepartmentId">
+                                @foreach (var dept in departments)
+                                {
+                                    <option value="@dept.Id">@dept.Name</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            @department?.Name
+                        }
+                    </td>
+                    <td>
+                        @if (isEditingInfo)
+                        {
+                            <input type="text" class="form-control form-control-sm" @bind="editingMentorName" placeholder="Куратор" />
+                        }
+                        else
+                        {
+                            @(intern.MentorName ?? "-")
+                        }
+                    </td>
+                    <td>
+                        @if (isEditingInfo)
+                        {
+                            <label class="form-label small">Начало:</label>
+                            <input type="date" class="form-control form-control-sm mb-1" @bind="editingStartDate" />
+                            <label class="form-label small">Окончание:</label>
+                            <input type="date" class="form-control form-control-sm" @bind="editingEndDate" />
+                        }
+                        else
+                        {
+                            <div>
+                                <small>
+                                    <strong>Начало:</strong> @intern.InternshipStartDate.ToShortDateString()<br />
+                                    <strong>Конец:</strong> @intern.InternshipEndDate.ToShortDateString()
+                                </small>
+                            </div>
+                            @if (daysLeft > 0)
+                            {
+                                <small class="text-muted">Осталось: @daysLeft дн.</small>
+                            }
+                            else
+                            {
+                                <small class="text-danger">Завершена</small>
+                            }
+                        }
+                    </td>
+                    <td>
+                        @if (isEditingProgress)
+                        {
+                            <div>
+                                <label class="form-label small">Прогресс: @editingProgress%</label>
+                                <input type="range"
+                                       class="form-range mb-2"
+                                       min="0"
+                                       max="100"
+                                       @bind="editingProgress"
+                                       @bind:event="oninput" />
+                                <div class="btn-group w-100">
+                                    <button class="btn btn-sm btn-success"
+                                            @onclick="() => SaveProgress(intern)">
+                                        Сохранить
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary"
+                                            @onclick="CancelProgressEdit">
+                                        Отмена
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-2">
+                                <div class="progress" style="height: 25px;">
+                                    <div class="progress-bar @progressClass"
+                                         role="progressbar"
+                                         style="width: @(intern.CompletionPercentage)%">
+                                        @(intern.CompletionPercentage)%
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary w-100"
+                                    @onclick="() => StartProgressEdit(intern)">
+                                Изменить прогресс
+                            </button>
+                        }
+                    </td>
+                    <td>
+                        @if (isEditingInfo)
+                        {
+                            <div class="btn-group-vertical w-100">
+                                <button class="btn btn-sm btn-success mb-1"
+                                        @onclick="() => SaveInfo(intern)">
+                                    Сохранить
+                                </button>
+                                <button class="btn btn-sm btn-secondary"
+                                        @onclick="CancelInfoEdit">
+                                    Отмена
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="btn-group-vertical w-100">
+                                <button class="btn btn-sm btn-primary mb-1"
+                                        @onclick="() => StartInfoEdit(intern)">
+                                    Изменить
+                                </button>
+                                <button class="btn btn-sm btn-danger"
+                                        @onclick="() => ShowDeleteConfirmation(intern)">
+                                    Удалить
+                                </button>
+                            </div>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="alert alert-secondary">
+        <strong>Всего стажеров:</strong> @interns.Count
+    </div>
+}
+
+<!-- Модальное окно подтверждения удаления -->
+@if (showDeleteModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Подтверждение удаления</h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Внимание!</strong> Это действие необратимо.
+                    </div>
+                    <p>Вы уверены, что хотите удалить стажера?</p>
+                    @if (internToDelete != null)
+                    {
+                        <div class="card">
+                            <div class="card-body">
+                                <p class="mb-1"><strong>Имя:</strong> @internToDelete.DisplayName</p>
+                                <p class="mb-1"><strong>Должность:</strong> @internToDelete.Role</p>
+                                <p class="mb-0"><strong>Отдел:</strong> @departments.FirstOrDefault(d => d.Id == internToDelete.DepartmentId)?.Name</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">
+                        Отмена
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">
+                        Удалить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Intern> interns = new();
+    private List<Department> departments = new();
+
+    // Для редактирования прогресса
+    private int? editingProgressInternId = null;
+    private int editingProgress = 0;
+
+    // Для редактирования информации
+    private int? editingInfoInternId = null;
+    private string editingDisplayName = string.Empty;
+    private string editingRole = string.Empty;
+    private int editingDepartmentId = 0;
+    private string editingMentorName = string.Empty;
+    private DateTime editingStartDate = DateTime.UtcNow;
+    private DateTime editingEndDate = DateTime.UtcNow;
+
+    // Для подтверждения удаления
+    private bool showDeleteModal = false;
+    private Intern? internToDelete = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        interns = await AccountService.GetInternsAsync();
+        departments = await DepartmentService.GetDepartmentsAsync();
+    }
+
+    // Методы редактирования прогресса 
+
+    private void StartProgressEdit(Intern intern)
+    {
+        editingProgressInternId = intern.Id;
+        editingProgress = intern.CompletionPercentage;
+    }
+
+    private async Task SaveProgress(Intern intern)
+    {
+        intern.CompletionPercentage = editingProgress;
+        await AccountService.UpdateAccountAsync(intern);
+
+        editingProgressInternId = null;
+        editingProgress = 0;
+
+        interns = await AccountService.GetInternsAsync();
+    }
+
+    private void CancelProgressEdit()
+    {
+        editingProgressInternId = null;
+        editingProgress = 0;
+    }
+
+    // Методы редактирования информации 
+
+    private void StartInfoEdit(Intern intern)
+    {
+        editingInfoInternId = intern.Id;
+        editingDisplayName = intern.DisplayName;
+        editingRole = intern.Role;
+        editingDepartmentId = intern.DepartmentId;
+        editingMentorName = intern.MentorName ?? string.Empty;
+        editingStartDate = intern.InternshipStartDate;
+        editingEndDate = intern.InternshipEndDate;
+    }
+
+    private async Task SaveInfo(Intern intern)
+    {
+        intern.DisplayName = editingDisplayName;
+        intern.Role = editingRole;
+        intern.DepartmentId = editingDepartmentId;
+        intern.MentorName = editingMentorName;
+        intern.InternshipStartDate = editingStartDate;
+        intern.InternshipEndDate = editingEndDate;
+
+        await AccountService.UpdateAccountAsync(intern);
+
+        editingInfoInternId = null;
+
+        interns = await AccountService.GetInternsAsync();
+    }
+
+    private void CancelInfoEdit()
+    {
+        editingInfoInternId = null;
+    }
+
+    // Методы удаления с подтверждением 
+
+    private void ShowDeleteConfirmation(Intern intern)
+    {
+        internToDelete = intern;
+        showDeleteModal = true;
+    }
+
+    private void CancelDelete()
+    {
+        internToDelete = null;
+        showDeleteModal = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (internToDelete != null)
+        {
+            await AccountService.DeleteAccountAsync(internToDelete.Id);
+            interns = await AccountService.GetInternsAsync();
+        }
+
+        internToDelete = null;
+        showDeleteModal = false;
+    }
+}

@@ -1,0 +1,84 @@
+﻿@page "/interns/add"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject AccountService AccountService
+@inject DepartmentService DepartmentService
+@inject NavigationManager NavManager
+
+<h3>Добавить стажера</h3>
+
+<EditForm Model="intern" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+
+    <div class="mb-3">
+        <label class="form-label">Имя стажера</label>
+        <InputText class="form-control" @bind-Value="intern.DisplayName" />
+        <ValidationMessage For="@(() => intern.DisplayName)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Позиция</label>
+        <InputText class="form-control" @bind-Value="intern.Role" placeholder="Стажер-разработчик" />
+        <ValidationMessage For="@(() => intern.Role)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Отдел</label>
+        <InputSelect class="form-control" @bind-Value="intern.DepartmentId">
+            <option value="0">-- Выберите отдел --</option>
+            @foreach (var dept in departments)
+            {
+                <option value="@dept.Id">@dept.Name</option>
+            }
+        </InputSelect>
+        <ValidationMessage For="@(() => intern.DepartmentId)" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Куратор</label>
+        <InputText class="form-control" @bind-Value="intern.MentorName" />
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label class="form-label">Дата начала стажировки</label>
+                <InputDate class="form-control" @bind-Value="intern.InternshipStartDate" />
+                <ValidationMessage For="@(() => intern.InternshipStartDate)" />
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label class="form-label">Дата окончания стажировки</label>
+                <InputDate class="form-control" @bind-Value="intern.InternshipEndDate" />
+                <ValidationMessage For="@(() => intern.InternshipEndDate)" />
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Процент выполнения программы: @(intern.CompletionPercentage)%</label>
+        <input type="range" class="form-range" min="0" max="100"
+               @bind="intern.CompletionPercentage" @bind:event="oninput" />
+    </div>
+
+    <button type="submit" class="btn btn-success">Сохранить</button>
+    <a href="/interns" class="btn btn-secondary">Отмена</a>
+</EditForm>
+
+@code {
+    private Intern intern = new();
+    private List<Department> departments = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        departments = await DepartmentService.GetDepartmentsAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        await AccountService.CreateInternAsync(intern);
+        NavManager.NavigateTo("/interns");
+    }
+}

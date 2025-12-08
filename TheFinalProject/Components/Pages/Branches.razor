@@ -1,0 +1,317 @@
+﻿@page "/branches"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject DepartmentService DepartmentService
+@inject NavigationManager NavManager
+
+<h3>Филиалы</h3>
+
+<div class="mb-3">
+    <a href="/branches/add" class="btn btn-primary">
+        Добавить филиал
+    </a>
+</div>
+
+<!-- Фильтр по городам -->
+<div class="mb-3">
+    <label class="form-label">Фильтр по городу:</label>
+    <select class="form-select" style="max-width: 300px;" @bind="selectedCity" @bind:after="FilterBranches">
+        <option value="">Все города</option>
+        @foreach (var city in cities)
+        {
+            <option value="@city">@city</option>
+        }
+    </select>
+</div>
+
+<!-- Фильтр по статусу -->
+<div class="mb-3">
+    <div class="btn-group" role="group">
+        <button type="button" class="btn @(statusFilter == "All" ? "btn-primary" : "btn-outline-primary")"
+                @onclick='() => FilterByStatus("All")'>
+            Все
+        </button>
+        <button type="button" class="btn @(statusFilter == "Active" ? "btn-success" : "btn-outline-success")"
+                @onclick='() => FilterByStatus("Active")'>
+            Активные
+        </button>
+        <button type="button" class="btn @(statusFilter == "Temporarily Closed" ? "btn-warning" : "btn-outline-warning")"
+                @onclick='() => FilterByStatus("Temporarily Closed")'>
+            Временно закрыты
+        </button>
+        <button type="button" class="btn @(statusFilter == "Closed" ? "btn-danger" : "btn-outline-danger")"
+                @onclick='() => FilterByStatus("Closed")'>
+            Закрыты
+        </button>
+    </div>
+</div>
+
+@if (filteredBranches == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!filteredBranches.Any())
+{
+    <div class="alert alert-info">
+        Филиалов не найдено. <a href="/branches/add">Добавьте первый филиал</a>
+    </div>
+}
+else
+{
+    <div class="row">
+        @foreach (var branch in filteredBranches)
+        {
+            var statusClass = branch.Status == "Active" ? "border-success"
+            : branch.Status == "Temporarily Closed" ? "border-warning"
+            : "border-danger";
+            var statusBadge = branch.Status == "Active" ? "bg-success"
+            : branch.Status == "Temporarily Closed" ? "bg-warning text-dark"
+            : "bg-danger";
+            var isEditing = editingBranchId == branch.Id;
+
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card @statusClass" style="border-width: 2px;">
+                    <div class="card-header">
+                        @if (isEditing)
+                        {
+                            <input type="text" class="form-control form-control-sm" @bind="editingName" />
+                        }
+                        else
+                        {
+                            <h5 class="mb-0">@branch.Name</h5>
+                        }
+                        <span class="badge @statusBadge">@branch.Status</span>
+                    </div>
+                    <div class="card-body">
+                        @if (isEditing)
+                        {
+                            <div class="mb-2">
+                                <label class="form-label small">Город:</label>
+                                <input type="text" class="form-control form-control-sm" @bind="editingCity" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Адрес:</label>
+                                <input type="text" class="form-control form-control-sm" @bind="editingAddress" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Телефон:</label>
+                                <input type="text" class="form-control form-control-sm" @bind="editingPhoneNumber" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Площадь (кв.м.):</label>
+                                <input type="number" class="form-control form-control-sm" @bind="editingOfficeArea" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Дата открытия:</label>
+                                <input type="date" class="form-control form-control-sm" @bind="editingOpeningDate" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Статус:</label>
+                                <select class="form-select form-select-sm" @bind="editingStatus">
+                                    <option value="Active">Активный</option>
+                                    <option value="Temporarily Closed">Временно закрыт</option>
+                                    <option value="Closed">Закрыт</option>
+                                </select>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="mb-1"><strong>📍 Город:</strong> @branch.City</p>
+                            <p class="mb-1"><strong>📍 Адрес:</strong> @branch.Address</p>
+                            <p class="mb-1"><strong>📞 Телефон:</strong> @(branch.PhoneNumber ?? "-")</p>
+                            <p class="mb-1"><strong>📏 Площадь:</strong> @branch.OfficeArea кв.м.</p>
+                            <p class="mb-0"><strong>📅 Открыт:</strong> @branch.OpeningDate.ToShortDateString()</p>
+                        }
+                    </div>
+                    <div class="card-footer">
+                        @if (isEditing)
+                        {
+                            <div class="btn-group w-100">
+                                <button class="btn btn-sm btn-success" @onclick="() => SaveBranch(branch)">
+                                    Сохранить
+                                </button>
+                                <button class="btn btn-sm btn-secondary" @onclick="CancelEdit">
+                                    Отмена
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="btn-group w-100">
+                                <button class="btn btn-sm btn-primary" @onclick="() => StartEdit(branch)">
+                                    Изменить
+                                </button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ShowDeleteConfirmation(branch)">
+                                    Удалить
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="alert alert-secondary mt-3">
+        <strong>Всего филиалов:</strong> @allBranches.Count
+        (<strong>Активных:</strong> @allBranches.Count(b => b.Status == "Active"),
+        <strong>Закрытых:</strong> @allBranches.Count(b => b.Status == "Closed"))
+    </div>
+}
+
+<!-- Модальное окно подтверждения удаления -->
+@if (showDeleteModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Подтверждение удаления</h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Внимание!</strong> Это действие необратимо.
+                    </div>
+                    <p>Вы уверены, что хотите удалить филиал?</p>
+                    @if (branchToDelete != null)
+                    {
+                        <div class="card">
+                            <div class="card-body">
+                                <p class="mb-1"><strong>Название:</strong> @branchToDelete.Name</p>
+                                <p class="mb-1"><strong>Город:</strong> @branchToDelete.City</p>
+                                <p class="mb-0"><strong>Адрес:</strong> @branchToDelete.Address</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">
+                        Отмена
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">
+                        Удалить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Branch> allBranches = new();
+    private List<Branch> filteredBranches = new();
+    private List<string> cities = new();
+    private string selectedCity = string.Empty;
+    private string statusFilter = "All";
+
+    // Для редактирования
+    private int? editingBranchId = null;
+    private string editingName = string.Empty;
+    private string editingCity = string.Empty;
+    private string editingAddress = string.Empty;
+    private string editingPhoneNumber = string.Empty;
+    private int editingOfficeArea = 0;
+    private DateTime editingOpeningDate = DateTime.UtcNow;
+    private string editingStatus = "Active";
+
+    // Для удаления
+    private bool showDeleteModal = false;
+    private Branch? branchToDelete = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        allBranches = await DepartmentService.GetBranchesAsync();
+        cities = allBranches.Select(b => b.City).Distinct().OrderBy(c => c).ToList();
+        FilterBranches();
+    }
+
+    private void FilterBranches()
+    {
+        filteredBranches = allBranches;
+
+        // Фильтр по городу
+        if (!string.IsNullOrEmpty(selectedCity))
+        {
+            filteredBranches = filteredBranches.Where(b => b.City == selectedCity).ToList();
+        }
+
+        // Фильтр по статусу
+        if (statusFilter != "All")
+        {
+            filteredBranches = filteredBranches.Where(b => b.Status == statusFilter).ToList();
+        }
+    }
+
+    private void FilterByStatus(string status)
+    {
+        statusFilter = status;
+        FilterBranches();
+    }
+
+    // === Методы редактирования ===
+
+    private void StartEdit(Branch branch)
+    {
+        editingBranchId = branch.Id;
+        editingName = branch.Name;
+        editingCity = branch.City;
+        editingAddress = branch.Address;
+        editingPhoneNumber = branch.PhoneNumber ?? string.Empty;
+        editingOfficeArea = branch.OfficeArea;
+        editingOpeningDate = branch.OpeningDate;
+        editingStatus = branch.Status;
+    }
+
+    private async Task SaveBranch(Branch branch)
+    {
+        branch.Name = editingName;
+        branch.City = editingCity;
+        branch.Address = editingAddress;
+        branch.PhoneNumber = editingPhoneNumber;
+        branch.OfficeArea = editingOfficeArea;
+        branch.OpeningDate = editingOpeningDate;
+        branch.Status = editingStatus;
+
+        await DepartmentService.UpdateDepartmentAsync(branch);
+
+        editingBranchId = null;
+
+        allBranches = await DepartmentService.GetBranchesAsync();
+        cities = allBranches.Select(b => b.City).Distinct().OrderBy(c => c).ToList();
+        FilterBranches();
+    }
+
+    private void CancelEdit()
+    {
+        editingBranchId = null;
+    }
+
+    // === Методы удаления ===
+
+    private void ShowDeleteConfirmation(Branch branch)
+    {
+        branchToDelete = branch;
+        showDeleteModal = true;
+    }
+
+    private void CancelDelete()
+    {
+        branchToDelete = null;
+        showDeleteModal = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (branchToDelete != null)
+        {
+            await DepartmentService.DeleteDepartmentAsync(branchToDelete.Id);
+            allBranches = await DepartmentService.GetBranchesAsync();
+            cities = allBranches.Select(b => b.City).Distinct().OrderBy(c => c).ToList();
+            FilterBranches();
+        }
+
+        branchToDelete = null;
+        showDeleteModal = false;
+    }
+}

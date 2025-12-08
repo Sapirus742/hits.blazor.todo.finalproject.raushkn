@@ -1,0 +1,81 @@
+﻿@page "/branches/add"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject DepartmentService DepartmentService
+@inject NavigationManager NavManager
+
+<h3>Добавить филиал</h3>
+
+<EditForm Model="branch" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+
+    <div class="mb-3">
+        <label class="form-label">Название филиала</label>
+        <InputText class="form-control" @bind-Value="branch.Name" placeholder="Филиал Москва" />
+        <ValidationMessage For="@(() => branch.Name)" />
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label class="form-label">Город</label>
+                <InputText class="form-control" @bind-Value="branch.City" placeholder="Москва" />
+                <ValidationMessage For="@(() => branch.City)" />
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label class="form-label">Телефон</label>
+                <InputText class="form-control" @bind-Value="branch.PhoneNumber" placeholder="+7 (999) 123-45-67" />
+                <ValidationMessage For="@(() => branch.PhoneNumber)" />
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Адрес</label>
+        <InputText class="form-control" @bind-Value="branch.Address" placeholder="ул. Ленина, д. 10" />
+        <ValidationMessage For="@(() => branch.Address)" />
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label class="form-label">Дата открытия</label>
+                <InputDate class="form-control" @bind-Value="branch.OpeningDate" />
+                <ValidationMessage For="@(() => branch.OpeningDate)" />
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label class="form-label">Площадь офиса (кв.м.)</label>
+                <InputNumber class="form-control" @bind-Value="branch.OfficeArea" />
+                <ValidationMessage For="@(() => branch.OfficeArea)" />
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Статус филиала</label>
+        <InputSelect class="form-control" @bind-Value="branch.Status">
+            <option value="Active">Активный</option>
+            <option value="Temporarily Closed">Временно закрыт</option>
+            <option value="Closed">Закрыт</option>
+        </InputSelect>
+        <ValidationMessage For="@(() => branch.Status)" />
+    </div>
+
+    <button type="submit" class="btn btn-success">Сохранить</button>
+    <a href="/branches" class="btn btn-secondary">Отмена</a>
+</EditForm>
+
+@code {
+    private Branch branch = new();
+
+    private async Task HandleValidSubmit()
+    {
+        await DepartmentService.AddBranchAsync(branch);
+        NavManager.NavigateTo("/branches");
+    }
+}
