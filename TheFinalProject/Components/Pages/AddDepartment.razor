@@ -1,0 +1,31 @@
+﻿@page "/departments/add"
+@using TheFinalProject.Models
+@using TheFinalProject.Data.Services
+@inject DepartmentService DepartmentService
+@inject NavigationManager NavManager
+
+<h3>Добавить отдел</h3>
+
+<EditForm Model="department" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+
+    <div class="mb-3">
+        <label class="form-label">Название отдела</label>
+        <InputText class="form-control" @bind-Value="department.Name" placeholder="Бухгалтерия" />
+        <ValidationMessage For="@(() => department.Name)" />
+    </div>
+
+    <button type="submit" class="btn btn-success">Сохранить</button>
+    <a href="/departments" class="btn btn-secondary">Отмена</a>
+</EditForm>
+
+@code {
+    private Department department = new();
+
+    private async Task HandleValidSubmit()
+    {
+        await DepartmentService.AddDepartmentAsync(department);
+        NavManager.NavigateTo("/departments");
+    }
+}

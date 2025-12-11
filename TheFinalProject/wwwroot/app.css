@@ -11,6 +11,12 @@ a, .btn-link {
     width: 350px; /* Áûכמ 250px */
 }
 
+canvas {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
 .btn-primary {
     color: #fff;
     background-color: #1b6ec2;

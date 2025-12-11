@@ -2,31 +2,14 @@
 @using TheFinalProject.Models
 @using TheFinalProject.Data.Services
 @inject DepartmentService DepartmentService
+@inject NavigationManager NavManager
 
-<h3>Управление отделами</h3>
+<h3>Отделы</h3>
 
-<div class="row mb-3">
-    <div class="col-md-12">
-        <button class="btn btn-primary" @onclick="ShowAddForm">+ Добавить отдел</button>
-    </div>
+<div class="mb-3">
+    <a href="/departments/add" class="btn btn-primary">Добавить отдел</a>
+    <a href="/branches/add" class="btn btn-success">Добавить филиал</a>
 </div>
-
-@if (showAddForm)
-{
-    <div class="card mb-3">
-        <div class="card-body">
-            <h5>Новый отдел</h5>
-            <EditForm Model="newDepartment" OnValidSubmit="AddDepartment">
-                <div class="mb-3">
-                    <label>Название отдела</label>
-                    <InputText class="form-control" @bind-Value="newDepartment.Name" />
-                </div>
-                <button type="submit" class="btn btn-success">Сохранить</button>
-                <button type="button" class="btn btn-secondary" @onclick="() => showAddForm = false">Отмена</button>
-            </EditForm>
-        </div>
-    </div>
-}
 
 @if (departments == null)
 {
@@ -34,37 +17,146 @@
 }
 else if (!departments.Any())
 {
-    <p><em>Отделов пока нет.</em></p>
+    <div class="alert alert-info">
+        Отделов пока нет. <a href="/departments/add">Добавьте первый отдел</a>
+    </div>
 }
 else
 {
-    <table class="table table-striped">
+    <table class="table table-striped table-hover">
         <thead>
             <tr>
                 <th>ID</th>
                 <th>Название</th>
+                <th>Тип</th>
                 <th>Действия</th>
             </tr>
         </thead>
         <tbody>
             @foreach (var dept in departments)
             {
+                var isBranch = dept is Branch;
+                var isEditing = editingDepartmentId == dept.Id;
+
                 <tr>
                     <td>@dept.Id</td>
-                    <td>@dept.Name</td>
                     <td>
-                        <a href="/department-details/@dept.Id" class="btn btn-sm btn-info">Подробнее</a>
+                        @if (isEditing)
+                        {
+                            <input type="text" class="form-control form-control-sm" @bind="editingName" />
+                        }
+                        else
+                        {
+                            <strong>@dept.Name</strong>
+                        }
+                    </td>
+                    <td>
+                        @if (isBranch)
+                        {
+                            <span class="badge bg-primary">Филиал</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Главный офис</span>
+                        }
+                    </td>
+                    <td>
+                        @if (isEditing)
+                        {
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-success" @onclick="() => SaveDepartment(dept)">
+                                    Сохранить
+                                </button>
+                                <button class="btn btn-sm btn-secondary" @onclick="CancelEdit">
+                                    Отмена
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-primary" @onclick="() => StartEdit(dept)">
+                                    Изменить
+                                </button>
+                                <button class="btn btn-sm btn-info" @onclick='() => NavManager.NavigateTo($"/department-details/{dept.Id}")'>
+                                    Подробнее
+                                </button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ShowDeleteConfirmation(dept)">
+                                    Удалить
+                                </button>
+                            </div>
+                        }
                     </td>
                 </tr>
             }
         </tbody>
     </table>
+
+    <div class="alert alert-secondary">
+        <strong>Всего:</strong> @departments.Count отделов
+        (@departments.Count(d => d is Branch) филиалов,
+        @departments.Count(d => d is not Branch) главных офисов)
+    </div>
+}
+
+<!-- Модальное окно подтверждения удаления -->
+@if (showDeleteModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Подтверждение удаления</h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Внимание!</strong> Это действие необратимо.
+                    </div>
+                    <p>Вы уверены, что хотите удалить отдел?</p>
+                    @if (departmentToDelete != null)
+                    {
+                        <div class="card">
+                            <div class="card-body">
+                                <p class="mb-1"><strong>Название:</strong> @departmentToDelete.Name</p>
+                                <p class="mb-0">
+                                    <strong>Тип:</strong>
+                                    @if (departmentToDelete is Branch)
+                                    {
+                                        <span class="badge bg-primary">Филиал</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Главный офис</span>
+                                    }
+                                </p>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">
+                        Отмена
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">
+                        Удалить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
     private List<Department> departments = new();
-    private Department newDepartment = new();
-    private bool showAddForm = false;
+
+    // Для редактирования
+    private int? editingDepartmentId = null;
+    private string editingName = string.Empty;
+
+    // Для удаления
+    private bool showDeleteModal = false;
+    private Department? departmentToDelete = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -76,16 +168,52 @@ else
         departments = await DepartmentService.GetDepartmentsAsync();
     }
 
-    private void ShowAddForm()
+    // Методы редактирования 
+
+    private void StartEdit(Department department)
     {
-        showAddForm = true;
-        newDepartment = new Department();
+        editingDepartmentId = department.Id;
+        editingName = department.Name;
     }
 
-    private async Task AddDepartment()
+    private async Task SaveDepartment(Department department)
     {
-        await DepartmentService.AddDepartmentAsync(newDepartment);
-        showAddForm = false;
+        department.Name = editingName;
+        await DepartmentService.UpdateDepartmentAsync(department);
+
+        editingDepartmentId = null;
         await LoadDepartments();
+    }
+
+    private void CancelEdit()
+    {
+        editingDepartmentId = null;
+        editingName = string.Empty;
+    }
+
+    // Методы удаления
+
+    private void ShowDeleteConfirmation(Department department)
+    {
+        departmentToDelete = department;
+        showDeleteModal = true;
+    }
+
+    private void CancelDelete()
+    {
+        departmentToDelete = null;
+        showDeleteModal = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (departmentToDelete != null)
+        {
+            await DepartmentService.DeleteDepartmentAsync(departmentToDelete.Id);
+            await LoadDepartments();
+        }
+
+        departmentToDelete = null;
+        showDeleteModal = false;
     }
 }

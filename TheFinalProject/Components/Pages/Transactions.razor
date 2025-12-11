@@ -143,9 +143,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await DepartmentService.SeedDataAsync();
-        await AccountService.SeedAccountsAsync();
-
         departments = await DepartmentService.GetDepartmentsAsync();
         allAccounts = await AccountService.GetAllAccountsAsync();
         transactions = await TransactionService.GetTransactionsAsync();

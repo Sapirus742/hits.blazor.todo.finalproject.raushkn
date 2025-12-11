@@ -24,6 +24,15 @@ namespace TheFinalProject.Data.Services
 
         public async Task UpdateTransactionAsync(Transaction transaction)
         {
+            // Отсоединяем все отслеживаемые экземпляры этой транзакции
+            var trackedEntity = _context.ChangeTracker.Entries<Transaction>()
+                .FirstOrDefault(e => e.Entity.Id == transaction.Id);
+
+            if (trackedEntity != null)
+            {
+                trackedEntity.State = EntityState.Detached;
+            }
+
             _context.Transactions.Update(transaction);
             await _context.SaveChangesAsync();
         }

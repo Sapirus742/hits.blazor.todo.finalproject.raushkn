@@ -19,7 +19,7 @@ namespace TheFinalProject
                 .AddInteractiveServerComponents();
 
             builder.Services.AddDbContext<JournalDbContext>(options =>
-    options.UseInMemoryDatabase("JournalDb"));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
             builder.Services.AddScoped<TransactionService>();
             builder.Services.AddScoped<AccountService>();
             builder.Services.AddScoped<DepartmentService>();

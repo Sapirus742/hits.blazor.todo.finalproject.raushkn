@@ -1,15 +1,23 @@
 ﻿@page "/reports"
 @using TheFinalProject.Models
 @using TheFinalProject.Data.Services
+@using System.Globalization
 @inject TransactionService TransactionService
 @inject DepartmentService DepartmentService
 @inject IJSRuntime JS
 
 <h3>Финансовые отчёты</h3>
 
-@if (transactions == null || departments == null)
+@if (isLoading)
 {
     <p><em>Загрузка...</em></p>
+}
+else if (!transactions.Any())
+{
+    <div class="alert alert-info">
+        <strong>Нет данных для отчёта.</strong> 
+        <a href="/add-transaction" class="alert-link">Добавьте транзакции</a> для построения графиков.
+    </div>
 }
 else
 {
@@ -19,7 +27,7 @@ else
             <div class="card text-white bg-success">
                 <div class="card-body">
                     <h5 class="card-title">Приход (внешний)</h5>
-                    <h2>@totalIncome.ToString("N2") руб.</h2>
+                    <h2>@($"{totalIncome:N2}") руб.</h2>
                 </div>
             </div>
         </div>
@@ -27,7 +35,7 @@ else
             <div class="card text-white bg-danger">
                 <div class="card-body">
                     <h5 class="card-title">Расход (внешний)</h5>
-                    <h2>@totalExpense.ToString("N2") руб.</h2>
+                    <h2>@($"{totalExpense:N2}") руб.</h2>
                 </div>
             </div>
         </div>
@@ -35,7 +43,7 @@ else
             <div class="card text-white bg-info">
                 <div class="card-body">
                     <h5 class="card-title">Баланс компании</h5>
-                    <h2>@balance.ToString("N2") руб.</h2>
+                    <h2 class="@(balance >= 0 ? "" : "text-warning")">@($"{balance:N2}") руб.</h2>
                 </div>
             </div>
         </div>
@@ -43,7 +51,7 @@ else
             <div class="card text-white bg-secondary">
                 <div class="card-body">
                     <h5 class="card-title">Внутренние переводы</h5>
-                    <h2>@internalTransfers.ToString("N2") руб.</h2>
+                    <h2>@($"{internalTransfers:N2}") руб.</h2>
                 </div>
             </div>
         </div>
@@ -55,8 +63,12 @@ else
             <div class="card">
                 <div class="card-body">
                     <h5>Распределение по типам операций</h5>
-                    <div class="chart-container">
-                        <canvas id="operationsChart"></canvas>
+                    @if (!chartsRendered)
+                    {
+                        <div class="alert alert-info">Загрузка графика...</div>
+                    }
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="operationsChart" style="max-height: 300px;"></canvas>
                     </div>
                 </div>
             </div>
@@ -65,13 +77,23 @@ else
             <div class="card">
                 <div class="card-body">
                     <h5>Баланс по отделам</h5>
-                    <div class="chart-container">
-                        <canvas id="departmentsChart"></canvas>
+                    @if (!chartsRendered)
+                    {
+                        <div class="alert alert-info">Загрузка графика...</div>
+                    }
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="departmentsChart" style="max-height: 300px;"></canvas>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+
+    @if (chartsRendered)
+    {
+        <div class="alert alert-success">Графики отрисованы</div>
+    }
 
     <!-- Таблица балансов по отделам -->
     <h4>Баланс по отделам</h4>
@@ -114,12 +136,12 @@ else
 
                 <tr>
                     <td><strong>@dept.Name</strong></td>
-                    <td class="text-success">@deptIncome.ToString("N2") руб.</td>
-                    <td class="text-danger">@deptExpense.ToString("N2") руб.</td>
-                    <td class="text-warning">-@transfersOut.ToString("N2") руб.</td>
-                    <td class="text-info">+@transfersIn.ToString("N2") руб.</td>
+                    <td class="text-success">@($"{deptIncome:N2}") руб.</td>
+                    <td class="text-danger">@($"{deptExpense:N2}") руб.</td>
+                    <td class="text-warning">-@($"{transfersOut:N2}") руб.</td>
+                    <td class="text-info">+@($"{transfersIn:N2}") руб.</td>
                     <td class="@(deptBalance >= 0 ? "text-success" : "text-danger") fw-bold">
-                        @deptBalance.ToString("N2") руб.
+                        @($"{deptBalance:N2}") руб.
                     </td>
                 </tr>
             }
@@ -149,50 +171,68 @@ else
                             @t.OperationType
                         </span>
                     </td>
-                    <td>@t.Amount.ToString("N2") руб.</td>
-                    <td>@t.Description</td>
+                    <td>@($"{t.Amount:N2}") руб.</td>
+                    <td>@(t.Description ?? "-")</td>
                 </tr>
             }
         </tbody>
     </table>
 }
 
-<style>
-    .chart-container {
-        position: relative;
-        height: 300px;
-        max-height: 400px;
-    }
-</style>
-
 @code {
     private List<Transaction> transactions = new();
     private List<Department> departments = new();
+    private bool isLoading = true;
 
     private decimal totalIncome;
     private decimal totalExpense;
     private decimal balance;
-    private decimal internalTransfers; // Добавили переменную
+    private decimal internalTransfers;
 
     protected override async Task OnInitializedAsync()
     {
-        departments = await DepartmentService.GetDepartmentsAsync();
-        transactions = await TransactionService.GetTransactionsAsync();
-
-        CalculateTotals();
+        try
+        {
+            departments = await DepartmentService.GetDepartmentsAsync();
+            transactions = await TransactionService.GetTransactionsAsync();
+            CalculateTotals();
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
+
+    private bool chartsRendered = false;
+    private bool pageLoaded = false;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && transactions.Any())
+        if (!pageLoaded && transactions.Any())
         {
-            await RenderCharts();
+            pageLoaded = true;
+            try
+            {
+                await Task.Delay(300);
+                await RenderCharts();
+                chartsRendered = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Ошибка: {ex.Message}");
+            }
         }
+    }
+
+    protected override void OnInitialized()
+    {
+        pageLoaded = false;
+        chartsRendered = false;
     }
 
     private void CalculateTotals()
     {
-        // Только внешние операции
         totalIncome = transactions
             .Where(t => t.OperationType == "Приход")
             .Sum(t => t.Amount);
@@ -203,7 +243,6 @@ else
 
         balance = totalIncome - totalExpense;
 
-        // Внутренние переводы (не влияют на общий баланс)
         internalTransfers = transactions
             .Where(t => t.OperationType == "Внутренний перевод")
             .Sum(t => t.Amount);
@@ -215,71 +254,53 @@ else
         {
             "Приход" => "bg-success",
             "Расход" => "bg-danger",
-            "Внутренний перевод" => "bg-warning",
+            "Внутренний перевод" => "bg-warning text-dark",
             _ => "bg-secondary"
         };
     }
 
     private async Task RenderCharts()
     {
-        // График типов операций
-        await JS.InvokeVoidAsync("eval", $@"
-            new Chart(document.getElementById('operationsChart'), {{
-                type: 'pie',
-                data: {{
-                    labels: ['Приход', 'Расход', 'Внутренние переводы'],
-                    datasets: [{{
-                        data: [{totalIncome}, {totalExpense}, {internalTransfers}],
-                        backgroundColor: ['#28a745', '#dc3545', '#ffc107']
-                    }}]
-                }},
-                options: {{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {{
-                        legend: {{
-                            position: 'bottom'
-                        }}
-                    }}
-                }}
-            }});
-        ");
-
-        // График балансов отделов
-        var deptNames = string.Join(",", departments.Select(d => $"'{d.Name}'"));
-        var deptBalances = string.Join(",", departments.Select(d =>
+        try
         {
-            var deptTrans = transactions.Where(t => t.DepartmentId == d.Id || t.TargetDepartmentId == d.Id);
-            
-            var income = deptTrans.Where(t => t.OperationType == "Приход" && t.DepartmentId == d.Id).Sum(t => t.Amount);
-            var expense = deptTrans.Where(t => t.OperationType == "Расход" && t.DepartmentId == d.Id).Sum(t => t.Amount);
-            var transfersOut = deptTrans.Where(t => t.OperationType == "Внутренний перевод" && t.DepartmentId == d.Id).Sum(t => t.Amount);
-            var transfersIn = deptTrans.Where(t => t.OperationType == "Внутренний перевод" && t.TargetDepartmentId == d.Id).Sum(t => t.Amount);
-            
-            return income - expense - transfersOut + transfersIn;
-        }));
-
-        await JS.InvokeVoidAsync("eval", $@"
-            new Chart(document.getElementById('departmentsChart'), {{
-                type: 'bar',
-                data: {{
-                    labels: [{deptNames}],
-                    datasets: [{{
-                        label: 'Баланс (руб.)',
-                        data: [{deptBalances}],
-                        backgroundColor: '#17a2b8'
-                    }}]
-                }},
-                options: {{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {{
-                        y: {{
-                            beginAtZero: true
-                        }}
-                    }}
-                }}
-            }});
+            // Уничтожаем старые графики
+            await JS.InvokeVoidAsync("eval", @"
+            if (window.operationsChartInstance) {
+                window.operationsChartInstance.destroy();
+            }
+            if (window.departmentsChartInstance) {
+                window.departmentsChartInstance.destroy();
+            }
         ");
+
+            await JS.InvokeVoidAsync("renderOperationsChart",
+                (double)totalIncome,
+                (double)totalExpense,
+                (double)internalTransfers);
+
+            if (departments.Any())
+            {
+                var labels = departments.Select(d => d.Name).ToArray();
+                var balances = departments.Select(d =>
+                {
+                    var deptTrans = transactions.Where(t =>
+                        t.DepartmentId == d.Id || t.TargetDepartmentId == d.Id);
+
+                    var income = deptTrans.Where(t => t.OperationType == "Приход" && t.DepartmentId == d.Id).Sum(t => t.Amount);
+                    var expense = deptTrans.Where(t => t.OperationType == "Расход" && t.DepartmentId == d.Id).Sum(t => t.Amount);
+                    var transfersOut = deptTrans.Where(t => t.OperationType == "Внутренний перевод" && t.DepartmentId == d.Id).Sum(t => t.Amount);
+                    var transfersIn = deptTrans.Where(t => t.OperationType == "Внутренний перевод" && t.TargetDepartmentId == d.Id).Sum(t => t.Amount);
+
+                    return (double)(income - expense - transfersOut + transfersIn);
+                }).ToArray();
+
+                await JS.InvokeVoidAsync("renderDepartmentsChart", labels, balances);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Ошибка: {ex.Message}");
+        }
     }
+
 }
